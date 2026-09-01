@@ -12,17 +12,28 @@ Required behavior:
 - Both groups appear in the Codex model selector and can be switched at any time.
 - The default route is `oauth`; the `cliproxy` route uses `failurePolicy = "strict"` so it never silently falls back to the wrong provider.
 
-Known-good state verified on 2026-09-01:
+Known-good state verified on 2026-09-01 after replacing the custom build with
+the upstream release:
 
-- Installed app: `/Applications/Cockpit Tools.app`, displayed version 1.3.34.
+- Installed app: `/Applications/Cockpit Tools.app`, upstream version 1.3.35.
+- Upstream artifact: official arm64 DMG with its published SHA-256 verified.
+- The upstream 1.3.35 macOS artifact is ad-hoc signed. It launches on this Mac,
+  but it does not satisfy the strict Apple Development signature check used for
+  the previous custom build.
 - Original app backup: `/Applications/Cockpit Tools 1.3.34 pre-mixed-routing 20260901.app`.
+- Known-good custom mixed-routing backup:
+  `/Applications/Cockpit Tools 1.3.34 custom mixed-routing 20260901-231043.app`.
+- Immediate pre-upgrade backup:
+  `/Applications/Cockpit Tools 1.3.34 pre-original-1.3.35 20260901-231241.app`.
 - Five OAuth accounts in the pool.
 - `modelRouting.defaultRoute = "oauth"`.
 - `modelRouting.failurePolicy = "strict"`.
 - Route namespace: `cliproxy`.
 - Historical manifest count: 69 model IDs, including 60 `cliproxy/*` IDs.
 - Historical Codex selector count: 68 models, consisting of 8 official models and 60 `cliproxy/*` models. Counts may change as catalogs change; the presence and function of both groups is authoritative.
-- The installed binary was Apple Development signed and passed `codesign --verify --deep --strict`.
+- The upstream 1.3.35 sidecar was verified live with one official OAuth request
+  and one `cliproxy/*` CLIProxyAPI request, both HTTP 200. The live selector
+  catalog contained 10 official and 60 namespaced models at verification time.
 
 ## Root cause and what was actually patched
 

@@ -16,3 +16,9 @@ The Pi5 CLIProxyAPI deployment has a daily, rollback-capable updater maintained
 under `ops/cliproxyapi/`. Keep the container pinned by immutable digest through
 its `.env`; an update is successful only after the runtime version, model list,
 five TEAM auth files, and five real Responses requests pass.
+
+Current installed Cockpit state (verified 2026-09-01): the upstream 1.3.35
+arm64 release is installed at `/Applications/Cockpit Tools.app`; five-account
+OAuth and `cliproxy/*` routing both passed real Responses requests. The upstream
+macOS bundle is ad-hoc signed, so preserve the two validly signed 1.3.34 custom
+backups listed in the mixed-routing runbook for recovery.
