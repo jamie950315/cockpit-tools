@@ -7,7 +7,7 @@ This is the recovery and upgrade runbook for the custom Cockpit Tools build used
 Required behavior:
 
 - Codex remains signed in with ChatGPT OAuth (`codex login status` reports `Logged in using ChatGPT`).
-- Unprefixed official models use the pool of five TEAM OAuth accounts.
+- Unprefixed official models use the pool of five TEAM OAuth credential records.
 - Models under the `cliproxy/` namespace use the CLIProxyAPI provider on Pi5.
 - Both groups appear in the Codex model selector and can be switched at any time.
 - The default route is `oauth`; the `cliproxy` route uses `failurePolicy = "strict"` so it never silently falls back to the wrong provider.
@@ -25,15 +25,27 @@ the upstream release:
   `/Applications/Cockpit Tools 1.3.34 custom mixed-routing 20260901-231043.app`.
 - Immediate pre-upgrade backup:
   `/Applications/Cockpit Tools 1.3.34 pre-original-1.3.35 20260901-231241.app`.
-- Five OAuth accounts in the pool.
+- Five distinct TEAM OAuth credential records in the pool. These records are not
+  proof of five distinct ChatGPT login identities or five independently tested
+  quota sources.
+- `routingStrategy = "auto"`; auto prefers the highest-ranked eligible account
+  by plan and remaining quota instead of distributing requests evenly.
+- Session affinity is enabled with a one-hour TTL, so the same conversation is
+  expected to stay on its selected account.
+- One credential is marked as a backup and is used only when regular eligible
+  credentials cannot serve the request.
 - `modelRouting.defaultRoute = "oauth"`.
 - `modelRouting.failurePolicy = "strict"`.
 - Route namespace: `cliproxy`.
 - Historical manifest count: 69 model IDs, including 60 `cliproxy/*` IDs.
 - Historical Codex selector count: 68 models, consisting of 8 official models and 60 `cliproxy/*` models. Counts may change as catalogs change; the presence and function of both groups is authoritative.
-- The upstream 1.3.35 sidecar was verified live with one official OAuth request
-  and one `cliproxy/*` CLIProxyAPI request, both HTTP 200. The live selector
-  catalog contained 10 official and 60 namespaced models at verification time.
+- The upstream 1.3.35 sidecar was verified live with official OAuth requests and
+  `cliproxy/*` CLIProxyAPI requests, all HTTP 200. Ten official requests carrying
+  distinct session IDs all selected one OAuth credential. This proves the
+  official route works, but disproves round-robin behavior in the current `auto`
+  configuration and does not individually validate all five credentials. The
+  live selector catalog contained 10 official and 60 namespaced models at
+  verification time.
 
 ## Root cause and what was actually patched
 
@@ -63,7 +75,8 @@ installed_app='/Applications/Cockpit Tools.app'
 /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$installed_app/Contents/Info.plist"
 codesign --verify --deep --strict --verbose=2 "$installed_app"
 strings "$installed_app/Contents/MacOS/cockpit-cliproxy" | rg 'model_route_not_available|modelRouting|defaultRoute'
-jq '{oauthAccounts:([.accounts[]|select(.authKind=="oauth")]|length),defaultRoute:.apiKeys[0].modelRouting.defaultRoute,failurePolicy:.apiKeys[0].modelRouting.failurePolicy,namespace:.apiKeys[0].modelRouting.routes[0].namespace,modelIds:(.modelIds|length),cliproxyModels:([.modelIds[]|select(startswith("cliproxy/"))]|length)}' "$HOME/.antigravity_cockpit/codex_local_access_sidecar/manifest.json"
+jq '{oauthCredentials:([.accounts[]|select(.authKind=="oauth")]|length),routingStrategy,defaultRoute:.apiKeys[0].modelRouting.defaultRoute,failurePolicy:.apiKeys[0].modelRouting.failurePolicy,namespace:.apiKeys[0].modelRouting.routes[0].namespace,modelIds:(.modelIds|length),cliproxyModels:([.modelIds[]|select(startswith("cliproxy/"))]|length)}' "$HOME/.antigravity_cockpit/codex_local_access_sidecar/manifest.json"
+jq '{sessionAffinity:.routing["session-affinity"],strategy:.routing.strategy}' "$HOME/.antigravity_cockpit/codex_local_access_sidecar/config.json"
 codex login status
 ```
 
@@ -258,7 +271,9 @@ The required logical configuration for the default local-access key is:
 
 Rules:
 
-- The top-level OAuth account pool contains exactly the five TEAM OAuth accounts.
+- The top-level OAuth account pool contains exactly five distinct TEAM OAuth
+  credential records. Do not infer distinct login identities from the record
+  count.
 - The CLIProxyAPI API-key account is excluded from that OAuth pool.
 - The default key inherits the OAuth pool.
 - Official models have no namespace and therefore use `oauth`.
@@ -294,8 +309,12 @@ lsof -nP -iTCP:57204 -sTCP:LISTEN
 jq -e '.apiKeys[0].modelRouting.defaultRoute=="oauth"
   and .apiKeys[0].modelRouting.failurePolicy=="strict"
   and .apiKeys[0].modelRouting.routes[0].namespace=="cliproxy"
+  and .routingStrategy=="auto"
   and ([.accounts[]|select(.authKind=="oauth")]|length)==5' \
   "$HOME/.antigravity_cockpit/codex_local_access_sidecar/manifest.json" >/dev/null
+
+jq -e '.routing["session-affinity"]==true' \
+  "$HOME/.antigravity_cockpit/codex_local_access_sidecar/config.json" >/dev/null
 
 rg -q '^base_url = "http://localhost:57204/v1"$' "$HOME/.codex/config.toml"
 codex login status
@@ -331,7 +350,20 @@ printf '%s' "$official_reply" | rg -qi 'Paris|巴黎'
 printf '%s' "$cliproxy_reply" | rg -qi 'Paris|巴黎'
 ```
 
-Accept any response containing `Paris` or `巴黎`; do not require exact equality. Inspect Cockpit logs to prove that the official request used the OAuth pool and the namespaced request used Pi5. An HTTP 200 alone does not prove correct routing.
+Accept any response containing `Paris` or `巴黎`; do not require exact equality.
+Inspect Cockpit logs to prove that the official request used the OAuth pool and
+the namespaced request used Pi5. An HTTP 200 alone does not prove correct
+routing. One successful official request proves only that the pool route works;
+it does not prove that every OAuth credential was selected or can complete the
+request.
+
+When diagnosing distribution, send requests with distinct `Session-Id` headers
+and count distinct selected account IDs in Cockpit's request log without printing
+the IDs. Under `auto`, repeated use of one healthy high-ranked credential is
+expected. A five-credential validation is complete only when each intended
+credential is deliberately selected, returns a successful real response, and is
+identified anonymously in the logs. Restore the original routing strategy and
+backup rules after any controlled per-credential test.
 
 Then verify Codex end to end:
 

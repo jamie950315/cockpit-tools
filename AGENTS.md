@@ -18,7 +18,12 @@ its `.env`; an update is successful only after the runtime version, model list,
 five TEAM auth files, and five real Responses requests pass.
 
 Current installed Cockpit state (verified 2026-09-01): the upstream 1.3.35
-arm64 release is installed at `/Applications/Cockpit Tools.app`; five-account
-OAuth and `cliproxy/*` routing both passed real Responses requests. The upstream
-macOS bundle is ad-hoc signed, so preserve the two validly signed 1.3.34 custom
-backups listed in the mixed-routing runbook for recovery.
+arm64 release is installed at `/Applications/Cockpit Tools.app`; official OAuth
+and `cliproxy/*` routing both passed real Responses requests. The OAuth pool has
+five distinct TEAM credential records, but that does not mean five distinct
+ChatGPT login identities. With `routingStrategy = "auto"` and session affinity
+enabled, ten official requests using distinct session IDs all selected one OAuth
+credential; do not describe this state as five-account round-robin. One pool
+credential is also marked as a backup. The upstream macOS bundle is ad-hoc
+signed, so preserve the two validly signed 1.3.34 custom backups listed in the
+mixed-routing runbook for recovery.

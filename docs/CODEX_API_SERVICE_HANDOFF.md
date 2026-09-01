@@ -79,6 +79,9 @@ profile, especially for WSL.
   expiry ordering, and custom priority/weight/backup routing. Random distribution
   shuffles eligible accounts for each new request; a session-affinity binding still
   wins for an existing conversation.
+- Auto is not round-robin: it prefers higher plan rank and remaining quota, then
+  rotates only among otherwise equal candidates. A configured account count does
+  not prove that every account has completed a real request.
 - Session affinity is enabled by default. Routing also observes cooldown and
   account-health state; retries are bounded by the configured credential count and
   delay.
