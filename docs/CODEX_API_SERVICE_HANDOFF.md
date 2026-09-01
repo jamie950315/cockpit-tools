@@ -82,6 +82,10 @@ profile, especially for WSL.
 - Auto is not round-robin: it prefers higher plan rank and remaining quota, then
   rotates only among otherwise equal candidates. A configured account count does
   not prove that every account has completed a real request.
+- Account-pool membership does not expose namespaced provider models. A
+  `modelRouting` route advertises its provider gateway's `upstreamModels` as
+  `<namespace>/<model>` through the authenticated model endpoint; the provider
+  API-key account should remain outside the OAuth pool.
 - Session affinity is enabled by default. Routing also observes cooldown and
   account-health state; retries are bounded by the configured credential count and
   delay.

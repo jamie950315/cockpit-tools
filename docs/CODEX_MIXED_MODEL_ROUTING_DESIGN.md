@@ -26,6 +26,20 @@ The source is determined by the full client-visible model ID. A GPT model under
 an API namespace is still an API model. It must never silently fall back to the
 subscription route.
 
+## Scope Boundary: Instance Routing and API Service Pools
+
+This design's Desktop instance path binds exactly one OAuth subscription account.
+It is distinct from a separately configured global API Service key, which may
+inherit a multi-account OAuth pool while using the same `modelRouting` sidecar
+contract.
+
+In either mode, adding a provider account to the OAuth pool is not how provider
+models become visible. Visibility comes from the active API key's
+`modelRouting.routes[].providerGateway.upstreamModels`: the sidecar advertises
+each entry as `<namespace>/<upstream-model>`, then strips that namespace when it
+routes the selected model to the provider. The OAuth pool controls only the bare
+model default route.
+
 ## Current Architecture
 
 Cockpit Tools currently has four relevant layers:

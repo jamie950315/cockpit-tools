@@ -11,6 +11,26 @@ Keep Codex authenticated with ChatGPT OAuth while exposing two request paths thr
 
 The CLIProxyAPI account must not be added to the OAuth pool. A model catalog entry alone is insufficient; the matching model route must be present in the local-access configuration and generated sidecar manifest.
 
+## Pool membership versus model visibility
+
+The API Service account pool controls only the credentials eligible for the
+default OAuth route. The CLIProxyAPI account deliberately remains outside that
+pool.
+
+Codex sees provider models through the active local API key's `modelRouting`
+configuration. Each route contains a namespace, a provider gateway, and its
+`upstreamModels`. When Codex requests the authenticated model list, the sidecar
+combines the official models with every route model and advertises provider
+models as `<namespace>/<upstream-model>`. For example, an upstream `grok-4.3`
+becomes `cliproxy/grok-4.3`.
+
+When that model is selected, the sidecar matches `cliproxy`, removes the prefix,
+and sends `grok-4.3` to CLIProxyAPI. If the route is disabled or deleted, its
+provider gateway is missing, or its upstream model list is empty, those models
+are no longer visible for that API key. The UI action that adds CLIProxyAPI to
+the API Service account pool does not control this visibility and should remain
+unused for this design.
+
 ## Required routing shape
 
 The default local-access key must inherit the OAuth account pool. Its logical routing configuration is:
@@ -75,6 +95,7 @@ jq -e '
   and .apiKeys[0].modelRouting.defaultRoute == "oauth"
   and .apiKeys[0].modelRouting.failurePolicy == "strict"
   and .apiKeys[0].modelRouting.routes[0].namespace == "cliproxy"
+  and (.apiKeys[0].modelRouting.routes[0].providerGateway.upstreamModels | length) > 0
 ' "$manifest" >/dev/null
 ```
 

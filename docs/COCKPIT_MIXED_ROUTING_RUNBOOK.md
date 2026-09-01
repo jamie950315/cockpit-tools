@@ -11,6 +11,9 @@ Required behavior:
 - Models under the `cliproxy/` namespace use the CLIProxyAPI provider on Pi5.
 - Both groups appear in the Codex model selector and can be switched at any time.
 - The default route is `oauth`; the `cliproxy` route uses `failurePolicy = "strict"` so it never silently falls back to the wrong provider.
+- The CLIProxyAPI API-key account remains outside the OAuth pool. Its models are
+  visible because the `cliproxy` model route references its provider gateway and
+  upstream model list, not because the account joins the pool.
 
 Known-good state verified on 2026-09-01 after replacing the custom build with
 the upstream release:
@@ -278,6 +281,18 @@ Rules:
 - The default key inherits the OAuth pool.
 - Official models have no namespace and therefore use `oauth`.
 - CLIProxyAPI upstream models are exposed with the `cliproxy/` prefix and route only through the matching current provider account.
+- Pool membership and model visibility are independent. The OAuth pool controls
+  which credentials may serve the default OAuth route. The active API key's
+  `modelRouting.routes[].providerGateway.upstreamModels` controls which
+  namespaced provider models the sidecar advertises to Codex.
+- The sidecar adds `<namespace>/` to every configured upstream model when it
+  builds the authenticated `/v1/models` response. Selecting one of those models
+  resolves the matching route, strips exactly one namespace prefix, and sends the
+  remaining upstream model ID to CLIProxyAPI.
+- Disabling or deleting the `cliproxy` route, removing its provider gateway, or
+  emptying its upstream model list removes those models from the API key's visible
+  catalog. The UI action that adds an account to the API Service pool is not the
+  visibility control for namespaced routes.
 - Copy the provider gateway object from the current CLIProxyAPI provider manifest without printing its API key. Never store that object in this file, Git, memory, logs, or chat.
 - Cockpit owns `~/.codex/cockpit-model-catalog.json`; never treat a manual edit to that generated file as the fix.
 - If the current Cockpit source still uses `~/.codex/.cockpit-experimental-model-catalog-config.json` as model input, populate it with the current official models plus unique `cliproxy/<upstream-id>` entries, then let Cockpit regenerate the managed catalog. Do not require the historical count of 68.
@@ -309,6 +324,7 @@ lsof -nP -iTCP:57204 -sTCP:LISTEN
 jq -e '.apiKeys[0].modelRouting.defaultRoute=="oauth"
   and .apiKeys[0].modelRouting.failurePolicy=="strict"
   and .apiKeys[0].modelRouting.routes[0].namespace=="cliproxy"
+  and (.apiKeys[0].modelRouting.routes[0].providerGateway.upstreamModels|length)>0
   and .routingStrategy=="auto"
   and ([.accounts[]|select(.authKind=="oauth")]|length)==5' \
   "$HOME/.antigravity_cockpit/codex_local_access_sidecar/manifest.json" >/dev/null

@@ -27,3 +27,9 @@ credential; do not describe this state as five-account round-robin. One pool
 credential is also marked as a backup. The upstream macOS bundle is ad-hoc
 signed, so preserve the two validly signed 1.3.34 custom backups listed in the
 mixed-routing runbook for recovery.
+
+The CLIProxyAPI API-key account must remain outside the OAuth account pool.
+Codex sees `cliproxy/*` because the local API key's `modelRouting` route embeds
+the provider gateway and its `upstreamModels`; the sidecar advertises those
+models with the route namespace through its model endpoint. Pool membership does
+not control namespaced model visibility.
