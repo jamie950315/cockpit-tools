@@ -1,0 +1,15 @@
+services:
+  cli-proxy-api:
+    image: ${CLIPROXY_IMAGE:-eceasy/cli-proxy-api:latest}
+    pull_policy: always
+    container_name: cli-proxy-api
+    platform: linux/arm64
+    ports:
+      - "8317:8317"
+      - "8085:8085"
+      - "1455:1455"
+    volumes:
+      - ./config.yaml:/CLIProxyAPI/config.yaml
+      - ./auths:/root/.cli-proxy-api
+      - ./logs:/CLIProxyAPI/logs
+    restart: unless-stopped

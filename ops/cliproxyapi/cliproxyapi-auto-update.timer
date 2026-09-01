@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily CLIProxyAPI release check
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Asia/Taipei
+RandomizedDelaySec=30m
+Persistent=true
+Unit=cliproxyapi-auto-update.service
+
+[Install]
+WantedBy=timers.target

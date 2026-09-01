@@ -346,3 +346,23 @@ Cockpit auto-update can replace this custom build. If Codex suddenly shows only 
 5. Rebuild only if the official binary still lacks the feature.
 
 Do not start by rewriting `~/.codex/cockpit-model-catalog.json`, changing `~/.codex/config.toml`, re-importing accounts, or replacing ChatGPT OAuth.
+
+## Pi5 CLIProxyAPI automatic updates
+
+The Pi5 deployment checks the upstream stable GitHub release once per day using
+`cliproxyapi-auto-update.timer`. The updater is stored at
+`/home/jamie/docker/cli-proxy-api/auto-update.sh`; its maintained source is in
+`ops/cliproxyapi/`.
+
+The updater resolves each stable release to an immutable container digest,
+recreates the service, and checks the runtime version, model catalog, five TEAM
+auth files, and five real Responses requests. Any failed check restores the
+previous digest. The API key is read into a mode-0600 temporary curl config and
+is never printed or placed in a process argument.
+
+```bash
+systemctl status cliproxyapi-auto-update.timer
+systemctl status cliproxyapi-auto-update.service
+journalctl -u cliproxyapi-auto-update.service --since today
+/home/jamie/docker/cli-proxy-api/auto-update.sh --check-only
+```

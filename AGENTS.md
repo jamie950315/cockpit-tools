@@ -11,3 +11,8 @@ This fork keeps three public branches with deliberately separate scopes:
 Never commit Cockpit runtime stores, API keys, OAuth tokens, account IDs, auth files, generated model catalogs, build products, or local signing material.
 
 Before publishing code changes, run the relevant frontend, Go, Rust, and macOS bundle checks described in the repository documentation. A model appearing in a catalog is not proof of correct routing; validate an official OAuth request and a namespaced CLIProxyAPI request independently in the target environment.
+
+The Pi5 CLIProxyAPI deployment has a daily, rollback-capable updater maintained
+under `ops/cliproxyapi/`. Keep the container pinned by immutable digest through
+its `.env`; an update is successful only after the runtime version, model list,
+five TEAM auth files, and five real Responses requests pass.
