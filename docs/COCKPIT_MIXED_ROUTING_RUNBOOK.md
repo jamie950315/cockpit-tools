@@ -311,6 +311,20 @@ Codex must continue pointing to Cockpit's local endpoint in `~/.codex/config.tom
 base_url = "http://localhost:57204/v1"
 ```
 
+The current upstream 1.3.35 installation uses a user-owned static catalog for
+two per-model context overrides:
+
+- `gpt-5.6-sol`: context 372000, compact 335000, effective percent 100.
+- `cliproxy/grok-4.6`: context 500000, compact 450000, effective percent 100.
+
+`~/.codex/config.toml` points `model_catalog_json` at
+`~/.codex/user-mixed-routing-model-catalog.json`. This preserves the original
+app binary and does not affect route selection. It also means Cockpit's dynamic
+model visibility updates do not automatically enter the static catalog; after
+the upstream or CLIProxyAPI model set changes, regenerate the catalog and repeat
+both live route checks. Do not replace this with a global
+`model_context_window`: models have different real limits.
+
 Do not replace ChatGPT OAuth with a CLIProxyAPI login. `codex login status` must remain `Logged in using ChatGPT`.
 
 ## Complete live verification
