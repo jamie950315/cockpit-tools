@@ -24,11 +24,10 @@ On its first launch, 1.3.36 restored takeover before the new setting could be
 disabled and changed `model_catalog_json` back to its managed catalog. The UI
 toggle did not persist a false value in the existing user config, so the durable
 repair was to set `codex_auto_restore_takeover_on_launch = false` explicitly in
-Cockpit's config and restore the user-owned catalog reference. This setting only
-disables restoration when Cockpit itself launches. Starting Codex through
-Cockpit's API Service action still reactivates takeover and replaces the
-external catalog reference; restore the reference afterward and create a new
-task, or start Codex directly without reactivating API Service. The OAuth pool has
+Cockpit's config. This setting only disables restoration when Cockpit itself
+launches; starting Codex through Cockpit's API Service action is a separate
+takeover path and must remain the normal launch method for the five-OAuth plus
+CLIProxyAPI setup. The OAuth pool has
 five distinct TEAM credential records, but that does not mean five distinct
 ChatGPT login identities. With `routingStrategy = "auto"` and session affinity
 enabled, ten official requests using distinct session IDs all selected one OAuth
@@ -43,14 +42,15 @@ the provider gateway and its `upstreamModels`; the sidecar advertises those
 models with the route namespace through its model endpoint. Pool membership does
 not control namespaced model visibility.
 
-Current Codex context overrides (verified after upgrading to 1.3.36 on
-2026-09-02) use the external,
-user-owned `~/.codex/user-mixed-routing-model-catalog.json` selected by
-`model_catalog_json`; they do not modify the upstream 1.3.35 app. Every catalog
-model is deliberately forced to context 500000, compact 450000, and
-`effective_context_window_percent = 100`, regardless of its upstream limit.
-Because this is a static catalog, regenerate and revalidate it whenever
-Cockpit's visible model set changes.
+Current Mac Codex context overrides (verified after upgrading to 1.3.36 on
+2026-09-02) use Cockpit's managed catalog so API Service takeover remains the
+normal launch path. Every entry in
+`~/.codex/.cockpit-experimental-model-catalog-config.json` declares context
+526316 and compact 450000. Codex applies its catalog default of 95 percent,
+producing an actual `model_context_window` of 500000; a real new CLI task
+confirmed that value. Keep `model_catalog_json = "cockpit-model-catalog.json"`.
+The raw 526316 deliberately compensates for Codex's 95-percent factor and may
+overstate smaller upstream models, an accepted user-selected tradeoff.
 
 CTPS Windows deployment (verified 2026-09-02): official Cockpit Tools 1.3.36
 x64 and Codex CLI 0.152.1 are installed. Its Cockpit store contains the same

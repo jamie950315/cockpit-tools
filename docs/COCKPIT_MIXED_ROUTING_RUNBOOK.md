@@ -60,16 +60,21 @@ Mac upgrade state verified on 2026-09-02:
 - On this migrated configuration, the UI switch appeared disabled but did not
   serialize `codex_auto_restore_takeover_on_launch` into Cockpit's existing
   config. A missing field continued to behave as enabled at the next launch.
-  Set the field explicitly to `false` and restore
-  `model_catalog_json = "user-mixed-routing-model-catalog.json"`.
+  Set the field explicitly to `false`.
 - That switch applies only when Cockpit itself starts. Launching or reactivating
   Codex through Cockpit's API Service action is a separate takeover path and
-  still changes the catalog reference back to `cockpit-model-catalog.json`.
-  After that action, restore the external reference before creating a task, or
-  launch Codex directly without reactivating API Service. A task keeps the
-  context snapshot it had when created.
-- After that relaunch, Codex resolved 69 models and every entry used context
-  500000, compact 450000, and effective percent 100. Real
+  correctly changes the catalog reference to `cockpit-model-catalog.json`.
+  Keep using this path because it also injects the five-account OAuth and
+  CLIProxyAPI configuration. A task keeps the context snapshot it had when
+  created.
+- The durable 500K solution now uses the managed catalog rather than an
+  external static catalog. Set every entry in
+  `.cockpit-experimental-model-catalog-config.json` to context 526316 and compact
+  450000. The generated catalog retains Codex's default effective percentage of
+  95, so a new task receives exactly 500000 usable tokens after integer
+  rounding. A real `gpt-5.6-sol` CLI task confirmed `model_context_window =
+  500000` and was removed after verification.
+- Real
   `gpt-5.6-luna` and `cliproxy/grok-4.3` requests both returned HTTP 200; the
   request records showed the official request selected an OAuth account while
   the namespaced request did not use the OAuth pool.
@@ -401,18 +406,18 @@ Codex must continue pointing to Cockpit's local endpoint in `~/.codex/config.tom
 base_url = "http://localhost:57204/v1"
 ```
 
-The current upstream 1.3.35 installation uses a user-owned static catalog that
-deliberately forces every listed model to context 500000, compact 450000, and
-effective percent 100. This may overstate the upstream limit of smaller models;
-an upstream rejection near the end of a long thread is an accepted tradeoff.
-
+The current upstream 1.3.36 Mac installation uses Cockpit's managed catalog.
 `~/.codex/config.toml` points `model_catalog_json` at
-`~/.codex/user-mixed-routing-model-catalog.json`. This preserves the original
-app binary and does not affect route selection. It also means Cockpit's dynamic
-model visibility updates do not automatically enter the static catalog; after
-the upstream or CLIProxyAPI model set changes, regenerate the catalog and repeat
-both live route checks. The previous per-model catalog is backed up as
-`~/.codex/user-mixed-routing-model-catalog.before-global-500k-20260902.json`.
+`cockpit-model-catalog.json`; do not replace it with the historical external
+catalog. Every model definition in
+`~/.codex/.cockpit-experimental-model-catalog-config.json` uses context 526316
+and compact 450000. Codex applies its default 95-percent effective factor, so a
+new task reports 500000 usable tokens. This may overstate the upstream limit of
+smaller models; an upstream rejection near the end of a long thread is an
+accepted tradeoff. After the visible model set changes, apply these two values
+to every current definition, let Cockpit regenerate its managed catalog, and
+repeat both live route checks. Historical user-owned catalogs remain recovery
+artifacts only and are not the active Mac configuration.
 
 Do not replace ChatGPT OAuth with a CLIProxyAPI login. `codex login status` must remain `Logged in using ChatGPT`.
 
