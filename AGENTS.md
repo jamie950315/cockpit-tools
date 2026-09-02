@@ -51,10 +51,23 @@ selector. Existing tasks may retain their old model name until their host's
 idle app-server is reloaded and a supported model override is sent.
 Model IDs use `CPA/<upstream-id>` and their selector display names use
 `CPA · <upstream-id>`; changing only the ID leaves the old provider label in
-Codex. Keep the default Codex instance's `modelRouting` synchronized with the
-API Service route so the launch-preview model settings show `CLIProxyAPI` as
-the source instead of `路由缺失`. Do not press Apply in that dialog solely to
-inspect it, because 1.3.36 may lowercase the uppercase namespace on save.
+Codex. Do not inject the API Service route into the default Codex instance to
+remove the launch-preview editor's `路由缺失` badge. The default launch binding
+must remain Cockpit's special `__api_service__` identity with no instance-level
+`modelRouting`; replacing it with a normal instance configuration makes API
+Service client launch fail. The badge is only an editor limitation, while the
+real route is owned by the local API key's `modelRouting`. Do not press Apply in
+that dialog solely to inspect it, because 1.3.36 may lowercase the uppercase
+namespace on save.
+
+Launching Codex through a single Cockpit OAuth account can replace API Service
+takeover with a temporary per-account localhost provider, remove the managed
+catalog reference, and leave Codex sending the single OAuth token to the API
+Service sidecar. Restoring `config.toml` and the catalog is not sufficient: the
+final API Service launch action must run so Cockpit switches client auth back to
+its local API key. That action restarts Codex, so never trigger it from the
+active task performing the repair; leave the validated launch preview for the
+user to finish.
 
 Current Mac Codex context overrides (verified after upgrading to 1.3.36 on
 2026-09-02) use Cockpit's managed catalog so API Service takeover remains the
@@ -79,8 +92,8 @@ errors but does not prevent requests through `codex_local_access`. Do not copy
 Mac `auth.json` to fix it. Use a fresh Windows `codex login --device-auth` only
 if native Codex account features are needed.
 The Windows active static catalog also uses `CPA · <upstream-id>` display names,
-and its default Codex instance route is synchronized to the same uppercase
-`CPA` API Service route.
+but no default-instance file should be created solely to mirror the API Service
+route.
 
 RPi SSH-host Codex context (verified 2026-09-02) is independent of the Mac and
 uses provider `pi5-api`. Its `/home/jamie/.codex/config.toml` points

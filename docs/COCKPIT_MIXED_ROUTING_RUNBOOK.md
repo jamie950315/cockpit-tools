@@ -88,9 +88,10 @@ Mac upgrade state verified on 2026-09-02:
   same recheck.
 - The selector label is a separate catalog field from the model ID. Every
   namespaced model uses ID `CPA/<upstream-id>` and display name
-  `CPA · <upstream-id>`. The default Codex instance's `modelRouting` mirrors the
-  API Service route; without that second link, the launch-preview editor reports
-  `路由缺失` even when direct API requests still work.
+  `CPA · <upstream-id>`. The launch-preview editor may report `路由缺失` because
+  the special API Service pseudo-instance intentionally has no instance-level
+  route. Do not "fix" that badge by copying the API Service route into default
+  instance settings.
 - Do not quit Cockpit remotely during validation when the current Codex task
   depends on its sidecar. Ask the user to relaunch it and wait for port 57204.
 
@@ -218,11 +219,11 @@ Known-good state verified on 2026-09-02:
   selected `CPA/grok-4.3`, replied successfully, and recorded 500000 context.
   The pre-change files are under
   `~/.antigravity_cockpit/backups/manual/20260902-before-cpa-prefix/`.
-- Mac display-name and instance-route corrections are backed up under
-  `~/.codex/backups/20260902-before-cpa-display-name/` and
-  `~/.antigravity_cockpit/backups/manual/20260902-before-cpa-display-route-sync/`.
-  The launch-preview editor was visually verified to show
-  `CPA · pplx/gpt` with source `CLIProxyAPI`, not `路由缺失`.
+- Mac display-name corrections are backed up under
+  `~/.codex/backups/20260902-before-cpa-display-name/`. The directory
+  `~/.antigravity_cockpit/backups/manual/20260902-before-cpa-display-route-sync/`
+  is the known-good pre-incident default-instance state and was restored after
+  an attempted route sync broke API Service client launch.
 - CTPS Windows: Cockpit and sidecar run in interactive Session 1; the store and
   live manifest use `CPA`, with 60 new-prefix and zero old-prefix models. Both
   real routes returned HTTP 200, and a Codex CLI session using
@@ -245,6 +246,34 @@ alongside `model_id` or `slug`. Keep each host's pre-display-name backup under
 its `20260902-before-cpa-display-name` backup directory. A successful request
 does not prove the selector label is correct; verify the Mac launch-preview UI
 and inspect the active catalog on each remote host.
+
+The default Mac Codex instance must preserve `bindAccountId = "__api_service__"`
+and no instance-level `modelRouting`. The API Service launch preview should open
+without a missing OAuth-account error. On CTPS, do not create
+`codex_instances.json` merely to mirror the local-access route; the erroneous
+files from the 2026-09-02 incident are retained only under
+`%USERPROFILE%\.cockpit-migration-backups\20260902-erroneous-default-route-sync`
+for diagnosis.
+
+If a single-account Cockpit launch replaces API Service takeover, restore all
+three layers before declaring recovery:
+
+1. Preserve the default instance's special `__api_service__` binding and keep
+   its instance-level `modelRouting` unset.
+2. Restore `model_provider = "codex_local_access"`,
+   `model_catalog_json = "cockpit-model-catalog.json"`, and provider Base URL
+   `http://localhost:57204/v1`; restore the 526316/450000 managed catalog with
+   `CPA · <upstream-id>` display names.
+3. Open the API Service launch preview and confirm it has no missing-account
+   error, then let the user press its final launch button. This last action is
+   required to replace the single OAuth token with Cockpit's local client key
+   and restarts Codex, so the repairing task must not press it itself.
+
+Before that restart, a safe client test may temporarily supply the local key
+through a one-process provider `env_key` override. Verify one official and one
+`CPA/*` request plus 500000 context without logging the key. Repeated 401 rows
+with blank model IDs in the sidecar request log mean Codex is still sending the
+single-account OAuth token and the final API Service launch has not run.
 
 The current 1.3.36 UI lowercases a namespace when its mixed-route form is
 saved, even though startup accepts the persisted uppercase value. Do not edit
