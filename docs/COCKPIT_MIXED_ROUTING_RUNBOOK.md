@@ -60,9 +60,14 @@ Mac upgrade state verified on 2026-09-02:
 - On this migrated configuration, the UI switch appeared disabled but did not
   serialize `codex_auto_restore_takeover_on_launch` into Cockpit's existing
   config. A missing field continued to behave as enabled at the next launch.
-  Set the field explicitly to `false`, restore
-  `model_catalog_json = "user-mixed-routing-model-catalog.json"`, and confirm
-  both survive a user-performed relaunch.
+  Set the field explicitly to `false` and restore
+  `model_catalog_json = "user-mixed-routing-model-catalog.json"`.
+- That switch applies only when Cockpit itself starts. Launching or reactivating
+  Codex through Cockpit's API Service action is a separate takeover path and
+  still changes the catalog reference back to `cockpit-model-catalog.json`.
+  After that action, restore the external reference before creating a task, or
+  launch Codex directly without reactivating API Service. A task keeps the
+  context snapshot it had when created.
 - After that relaunch, Codex resolved 69 models and every entry used context
   500000, compact 450000, and effective percent 100. Real
   `gpt-5.6-luna` and `cliproxy/grok-4.3` requests both returned HTTP 200; the

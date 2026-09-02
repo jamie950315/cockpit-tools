@@ -24,8 +24,11 @@ On its first launch, 1.3.36 restored takeover before the new setting could be
 disabled and changed `model_catalog_json` back to its managed catalog. The UI
 toggle did not persist a false value in the existing user config, so the durable
 repair was to set `codex_auto_restore_takeover_on_launch = false` explicitly in
-Cockpit's config and restore the user-owned catalog reference. A subsequent
-manual relaunch preserved both values. The OAuth pool has
+Cockpit's config and restore the user-owned catalog reference. This setting only
+disables restoration when Cockpit itself launches. Starting Codex through
+Cockpit's API Service action still reactivates takeover and replaces the
+external catalog reference; restore the reference afterward and create a new
+task, or start Codex directly without reactivating API Service. The OAuth pool has
 five distinct TEAM credential records, but that does not mean five distinct
 ChatGPT login identities. With `routingStrategy = "auto"` and session affinity
 enabled, ten official requests using distinct session IDs all selected one OAuth
