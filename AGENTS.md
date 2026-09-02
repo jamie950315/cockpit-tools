@@ -19,7 +19,7 @@ five TEAM auth files, and five real Responses requests pass.
 
 Current installed Cockpit state (verified 2026-09-02): the upstream 1.3.36
 arm64 release is installed at `/Applications/Cockpit Tools.app`; official OAuth
-and `cliproxy/*` routing both passed real Responses requests after the upgrade.
+and `CPA/*` routing both passed real Responses requests after the upgrade.
 On its first launch, 1.3.36 restored takeover before the new setting could be
 disabled and changed `model_catalog_json` back to its managed catalog. The UI
 toggle did not persist a false value in the existing user config, so the durable
@@ -37,10 +37,18 @@ signed, so preserve the two validly signed 1.3.34 custom backups listed in the
 mixed-routing runbook for recovery.
 
 The CLIProxyAPI API-key account must remain outside the OAuth account pool.
-Codex sees `cliproxy/*` because the local API key's `modelRouting` route embeds
+Codex sees `CPA/*` because the local API key's `modelRouting` route embeds
 the provider gateway and its `upstreamModels`; the sidecar advertises those
 models with the route namespace through its model endpoint. Pool membership does
 not control namespaced model visibility.
+
+The current namespace is the case-sensitive `CPA`, with no visible
+`cliproxy/*` alias. Cockpit 1.3.36 preserves an uppercase namespace when loading
+the stopped app's persisted collection, but its mixed-route form normalizes a
+saved namespace to lowercase. After editing or copying that route in the UI,
+recheck both the persistent collection and live manifest before trusting the
+selector. Existing tasks may retain their old model name until their host's
+idle app-server is reloaded and a supported model override is sent.
 
 Current Mac Codex context overrides (verified after upgrading to 1.3.36 on
 2026-09-02) use Cockpit's managed catalog so API Service takeover remains the
@@ -56,7 +64,7 @@ CTPS Windows deployment (verified 2026-09-02): official Cockpit Tools 1.3.36
 x64 and Codex CLI 0.152.1 are installed. Its Cockpit store contains the same
 five OAuth credential records and CLIProxyAPI provider copied over encrypted
 SSH, while its user-owned model catalog is byte-identical to the Mac catalog.
-After a full Cockpit restart, real official and `cliproxy/*` Responses requests
+After a full Cockpit restart, real official and `CPA/*` Responses requests
 both returned HTTP 200. Keep
 `codex_auto_restore_takeover_on_launch = false` on CTPS so Cockpit 1.3.36 does
 not replace the user-owned catalog reference with its managed catalog. The old
@@ -71,7 +79,7 @@ uses provider `pi5-api`. Its `/home/jamie/.codex/config.toml` points
 `/home/jamie/.codex/rpi-all-models-500k-catalog.json`. The static catalog has 71
 current models, each declaring context 526316 and compact 450000; Codex applies
 95 percent and reports an actual window of 500000. Fresh real
-`gpt-5.6-luna` and `cliproxy/grok-4.6` tasks both returned `OK` with
+`gpt-5.6-luna` and `CPA/grok-4.6` tasks both returned `OK` with
 `model_context_window = 500000`. Existing tasks retain the context snapshot
 while the current app-server writer remains active. The existing
 `更新並驗證 Perplexity 模型` task was upgraded in place from 124518 to 500000
@@ -81,3 +89,9 @@ Do this only after confirming no RPi task is active. The pre-change config backu
 `/home/jamie/.codex/backups/20260902-before-all-models-500k/`. RPi's native
 ChatGPT refresh token is invalid, but `pi5-api` requests still work; do not copy
 another host's rotating `auth.json` to repair it.
+
+WSL uses provider `ctps_local_access`, the CTPS local-access URL, and
+`/home/jamie/.codex/wsl-cpa-500k-catalog.json`. Its catalog contains 60
+`CPA/*` entries and no old prefix. After reloading Codex 0.143.0 app-server,
+fresh official and `CPA/*` CLI sessions both returned the expected answer with
+`model_context_window = 500000`.

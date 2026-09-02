@@ -8,11 +8,11 @@ Required behavior:
 
 - Codex remains signed in with ChatGPT OAuth (`codex login status` reports `Logged in using ChatGPT`).
 - Unprefixed official models use the pool of five TEAM OAuth credential records.
-- Models under the `cliproxy/` namespace use the CLIProxyAPI provider on Pi5.
+- Models under the case-sensitive `CPA/` namespace use the CLIProxyAPI provider on Pi5.
 - Both groups appear in the Codex model selector and can be switched at any time.
-- The default route is `oauth`; the `cliproxy` route uses `failurePolicy = "strict"` so it never silently falls back to the wrong provider.
+- The default route is `oauth`; the `CPA` route uses `failurePolicy = "strict"` so it never silently falls back to the wrong provider.
 - The CLIProxyAPI API-key account remains outside the OAuth pool. Its models are
-  visible because the `cliproxy` model route references its provider gateway and
+  visible because the `CPA` model route references its provider gateway and
   upstream model list, not because the account joins the pool.
 
 Known-good state verified on 2026-09-01 after replacing the custom build with
@@ -39,7 +39,7 @@ the upstream release:
   credentials cannot serve the request.
 - `modelRouting.defaultRoute = "oauth"`.
 - `modelRouting.failurePolicy = "strict"`.
-- Route namespace: `cliproxy`.
+- Historical route namespace: `cliproxy` (renamed to `CPA` on 2026-09-02).
 - Historical manifest count: 69 model IDs, including 60 `cliproxy/*` IDs.
 - Historical Codex selector count: 68 models, consisting of 8 official models and 60 `cliproxy/*` models. Counts may change as catalogs change; the presence and function of both groups is authoritative.
 - The upstream 1.3.35 sidecar was verified live with official OAuth requests and
@@ -75,9 +75,17 @@ Mac upgrade state verified on 2026-09-02:
   rounding. A real `gpt-5.6-sol` CLI task confirmed `model_context_window =
   500000` and was removed after verification.
 - Real
-  `gpt-5.6-luna` and `cliproxy/grok-4.3` requests both returned HTTP 200; the
+  `gpt-5.6-luna` and `CPA/grok-4.3` requests both returned HTTP 200 after the
+  namespace migration; the
   request records showed the official request selected an OAuth account while
   the namespaced request did not use the OAuth pool.
+- The live route store and manifest now contain exactly one uppercase namespace,
+  `CPA`, and expose 60 `CPA/*` models with no `cliproxy/*` alias. Cockpit 1.3.36
+  preserves this value when loading the persisted collection, but its mixed-route
+  form normalizes a namespace to lowercase when saving. Stop Cockpit before an
+  exact persisted-store repair, restart immediately, and verify both files plus
+  both real request paths. Editing or copying the route in the UI requires the
+  same recheck.
 - Do not quit Cockpit remotely during validation when the current Codex task
   depends on its sidecar. Ask the user to relaunch it and wait for port 57204.
 
@@ -96,7 +104,8 @@ Known-good state verified on 2026-09-02:
   fingerprint were copied from the Mac over encrypted SSH. Historical account
   backups and the Mac `auth.json` were deliberately excluded.
 - The generated manifest contains five OAuth records, `defaultRoute = "oauth"`,
-  `failurePolicy = "strict"`, and a `cliproxy` route with 60 upstream models.
+  `failurePolicy = "strict"`, and a `CPA` route with 60 upstream models and no
+  old-prefix alias.
 - `%USERPROFILE%\.codex\user-mixed-routing-model-catalog.json` is byte-identical
   to the Mac file. Its 69 entries all use context 500000, compact 450000, and
   effective percent 100. The sidecar currently advertises one additional
@@ -110,7 +119,7 @@ Known-good state verified on 2026-09-02:
   otherwise replace the user-owned `model_catalog_json` reference with its
   managed catalog when it restores takeover at launch.
 - After stopping and relaunching Cockpit in interactive Session 1, both a real
-  `gpt-5.6-luna` Responses request and a real `cliproxy/grok-4.3` Responses
+  `gpt-5.6-luna` Responses request and a real `CPA/grok-4.3` Responses
   request returned HTTP 200 with the expected answer. The request database
   recorded both as successful sidecar requests. Only one OAuth record was
   anonymously observed serving the official checks, so this does not prove all
@@ -140,7 +149,7 @@ codex login status
 ```
 
 The user must complete the browser/device authorization. Repeat one official
-and one `cliproxy/*` end-to-end request afterward and confirm the
+and one `CPA/*` end-to-end request afterward and confirm the
 `refresh_token_reused` error is gone. The official Codex CLI reference documents
 `--device-auth` as the device-code alternative to opening a browser directly:
 <https://developers.openai.com/codex/cli/reference>.
@@ -164,8 +173,8 @@ Known-good state verified on 2026-09-02:
   Every entry uses context 526316, max context 526316, and compact 450000.
   Codex applies its 95-percent effective factor and records
   `model_context_window = 500000`.
-- Fresh real `gpt-5.6-luna` and `cliproxy/grok-4.6` tasks both returned `OK` and
-  recorded a 500000 window. Both test tasks were deleted after verification.
+- Fresh real `gpt-5.6-luna` and `CPA/grok-4.6` tasks both returned `OK` and
+  recorded a 500000 window.
 - The original config is backed up under
   `/home/jamie/.codex/backups/20260902-before-all-models-500k/`.
 - Existing tasks keep their creation-time window while their app-server writer
@@ -181,11 +190,53 @@ Known-good state verified on 2026-09-02:
   but both `pi5-api` routes still completed. Use an independent device login if
   native account features are required; never copy another host's rotating
   `auth.json`.
+- The pre-existing `更新並驗證 Perplexity 模型` task was moved from its saved
+  `cliproxy/grok-4.6` name to `CPA/grok-4.6` only after all RPi tasks were idle
+  and its app-server was reloaded. A supported model override on a new turn
+  preserved the task history and recorded `model_context_window = 500000`.
 
 When the Pi5 model set changes, regenerate the RPi catalog from `codex debug
 models`, reapply the three numeric fields to every current entry, and repeat one
 official plus one namespaced real task. Never assume the historical count of 71
 is fixed.
+
+## CPA namespace deployment across hosts
+
+Known-good state verified on 2026-09-02:
+
+- The rename is strict and case-sensitive: expose `CPA/*`; do not retain a
+  visible `cliproxy/*` alias. Provider names, service names, and the
+  `route-cliproxyapi-pi5` internal route ID do not need renaming.
+- Mac: the Cockpit collection and live manifest use `CPA`; the manifest exposes
+  60 `CPA/*` models and zero old-prefix models. Real `gpt-5.6-luna` and
+  `CPA/grok-4.3` Responses requests returned HTTP 200. A real Codex CLI session
+  selected `CPA/grok-4.3`, replied successfully, and recorded 500000 context.
+  The pre-change files are under
+  `~/.antigravity_cockpit/backups/manual/20260902-before-cpa-prefix/`.
+- CTPS Windows: Cockpit and sidecar run in interactive Session 1; the store and
+  live manifest use `CPA`, with 60 new-prefix and zero old-prefix models. Both
+  real routes returned HTTP 200, and a Codex CLI session using
+  `CPA/grok-4.3` recorded 500000 context. The pre-change backup is
+  `%USERPROFILE%\.cockpit-migration-backups\20260902-before-cpa-prefix`.
+- WSL: provider `ctps_local_access` still points to CTPS. The catalog is
+  `/home/jamie/.codex/wsl-cpa-500k-catalog.json`, with 60 new-prefix and zero
+  old-prefix models. After reloading Codex 0.143.0 app-server, fresh official
+  and `CPA/grok-4.3` CLI sessions both succeeded with 500000 context. The
+  pre-change backup is `/home/jamie/.codex/backups/20260902-before-cpa-prefix/`.
+- RPi: provider `pi5-api` is unchanged. Its 71-model catalog contains 60
+  `CPA/*` entries and no old prefix. After reloading Codex 0.147.0 app-server,
+  fresh official and `CPA/grok-4.6` CLI sessions both succeeded with 500000
+  context. The pre-existing Perplexity task also accepted a supported model
+  override to `CPA/grok-4.6` and recorded 500000 on its latest turn. The
+  pre-change backup is `/home/jamie/.codex/backups/20260902-before-cpa-prefix/`.
+
+The current 1.3.36 UI lowercases a namespace when its mixed-route form is
+saved, even though startup accepts the persisted uppercase value. Do not edit
+or copy this route without immediately checking the persisted collection, live
+manifest, model list, and both real routes. If a task still holds an old model
+name, confirm all tasks on that host are idle, reload only that host's Codex
+app-server, then send a new turn with the supported `CPA/<model>` override. Do
+not rewrite rollout history.
 
 ## Root cause and what was actually patched
 
@@ -215,7 +266,7 @@ installed_app='/Applications/Cockpit Tools.app'
 /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$installed_app/Contents/Info.plist"
 codesign --verify --deep --strict --verbose=2 "$installed_app"
 strings "$installed_app/Contents/MacOS/cockpit-cliproxy" | rg 'model_route_not_available|modelRouting|defaultRoute'
-jq '{oauthCredentials:([.accounts[]|select(.authKind=="oauth")]|length),routingStrategy,defaultRoute:.apiKeys[0].modelRouting.defaultRoute,failurePolicy:.apiKeys[0].modelRouting.failurePolicy,namespace:.apiKeys[0].modelRouting.routes[0].namespace,modelIds:(.modelIds|length),cliproxyModels:([.modelIds[]|select(startswith("cliproxy/"))]|length)}' "$HOME/.antigravity_cockpit/codex_local_access_sidecar/manifest.json"
+jq '{oauthCredentials:([.accounts[]|select(.authKind=="oauth")]|length),routingStrategy,defaultRoute:.apiKeys[0].modelRouting.defaultRoute,failurePolicy:.apiKeys[0].modelRouting.failurePolicy,namespace:.apiKeys[0].modelRouting.routes[0].namespace,modelIds:(.modelIds|length),cpaModels:([.modelIds[]|select(startswith("CPA/"))]|length),oldPrefixModels:([.modelIds[]|select(startswith("cliproxy/"))]|length)}' "$HOME/.antigravity_cockpit/codex_local_access_sidecar/manifest.json"
 jq '{sessionAffinity:.routing["session-affinity"],strategy:.routing.strategy}' "$HOME/.antigravity_cockpit/codex_local_access_sidecar/config.json"
 codex login status
 ```
@@ -400,7 +451,7 @@ The required logical configuration for the default local-access key is:
     "routes": [
       {
         "id": "route-cliproxyapi-pi5",
-        "namespace": "cliproxy",
+        "namespace": "CPA",
         "providerAccountId": "CURRENT_CLIPROXYAPI_ACCOUNT_ID",
         "providerGateway": "COPY_THE_CURRENT_PROVIDER_GATEWAY_OBJECT_WITHOUT_LOGGING_ITS_SECRET"
       }
@@ -417,7 +468,7 @@ Rules:
 - The CLIProxyAPI API-key account is excluded from that OAuth pool.
 - The default key inherits the OAuth pool.
 - Official models have no namespace and therefore use `oauth`.
-- CLIProxyAPI upstream models are exposed with the `cliproxy/` prefix and route only through the matching current provider account.
+- CLIProxyAPI upstream models are exposed with the `CPA/` prefix and route only through the matching current provider account.
 - Pool membership and model visibility are independent. The OAuth pool controls
   which credentials may serve the default OAuth route. The active API key's
   `modelRouting.routes[].providerGateway.upstreamModels` controls which
@@ -426,13 +477,13 @@ Rules:
   builds the authenticated `/v1/models` response. Selecting one of those models
   resolves the matching route, strips exactly one namespace prefix, and sends the
   remaining upstream model ID to CLIProxyAPI.
-- Disabling or deleting the `cliproxy` route, removing its provider gateway, or
+- Disabling or deleting the `CPA` route, removing its provider gateway, or
   emptying its upstream model list removes those models from the API key's visible
   catalog. The UI action that adds an account to the API Service pool is not the
   visibility control for namespaced routes.
 - Copy the provider gateway object from the current CLIProxyAPI provider manifest without printing its API key. Never store that object in this file, Git, memory, logs, or chat.
 - Cockpit owns `~/.codex/cockpit-model-catalog.json`; never treat a manual edit to that generated file as the fix.
-- If the current Cockpit source still uses `~/.codex/.cockpit-experimental-model-catalog-config.json` as model input, populate it with the current official models plus unique `cliproxy/<upstream-id>` entries, then let Cockpit regenerate the managed catalog. Do not require the historical count of 68.
+- If the current Cockpit source still uses `~/.codex/.cockpit-experimental-model-catalog-config.json` as model input, populate it with the current official models plus unique `CPA/<upstream-id>` entries, then let Cockpit regenerate the managed catalog. Do not require the historical count of 68.
 
 The persistent collection is currently located at:
 
@@ -473,7 +524,7 @@ lsof -nP -iTCP:57204 -sTCP:LISTEN
 
 jq -e '.apiKeys[0].modelRouting.defaultRoute=="oauth"
   and .apiKeys[0].modelRouting.failurePolicy=="strict"
-  and .apiKeys[0].modelRouting.routes[0].namespace=="cliproxy"
+  and .apiKeys[0].modelRouting.routes[0].namespace=="CPA"
   and (.apiKeys[0].modelRouting.routes[0].providerGateway.upstreamModels|length)>0
   and .routingStrategy=="auto"
   and ([.accounts[]|select(.authKind=="oauth")]|length)==5' \
@@ -500,20 +551,20 @@ official_code=$(curl -sS --max-time 180 -o "$official_response" -w '%{http_code}
   --data-binary '{"model":"gpt-5.6-luna","input":"What is the capital of France? Reply with only the answer.","stream":false}' \
   http://127.0.0.1:57204/v1/responses)
 
-cliproxy_response=$(mktemp)
-cliproxy_code=$(curl -sS --max-time 180 -o "$cliproxy_response" -w '%{http_code}' \
+cpa_response=$(mktemp)
+cpa_code=$(curl -sS --max-time 180 -o "$cpa_response" -w '%{http_code}' \
   -H "Authorization: Bearer $local_key" \
   -H 'Content-Type: application/json' \
-  --data-binary '{"model":"cliproxy/grok-4.3","input":"What is the capital of France? Reply with only the answer.","stream":false}' \
+  --data-binary '{"model":"CPA/grok-4.3","input":"What is the capital of France? Reply with only the answer.","stream":false}' \
   http://127.0.0.1:57204/v1/responses)
 
 official_reply=$(jq -r '[.output[]?.content[]? | select(.type=="output_text") | .text] | join("")' "$official_response")
-cliproxy_reply=$(jq -r '[.output[]?.content[]? | select(.type=="output_text") | .text] | join("")' "$cliproxy_response")
+cpa_reply=$(jq -r '[.output[]?.content[]? | select(.type=="output_text") | .text] | join("")' "$cpa_response")
 
 test "$official_code" = '200'
-test "$cliproxy_code" = '200'
+test "$cpa_code" = '200'
 printf '%s' "$official_reply" | rg -qi 'Paris|巴黎'
-printf '%s' "$cliproxy_reply" | rg -qi 'Paris|巴黎'
+printf '%s' "$cpa_reply" | rg -qi 'Paris|巴黎'
 ```
 
 Accept any response containing `Paris` or `巴黎`; do not require exact equality.
@@ -534,11 +585,11 @@ backup rules after any controlled per-credential test.
 Then verify Codex end to end:
 
 ```bash
-codex exec --model cliproxy/grok-4.3 \
+codex exec --model CPA/grok-4.3 \
   'What is the capital of France? Reply with only the answer.'
 ```
 
-Finally restart Cockpit once more and repeat the structure and two-route probes. Reopen the Codex app and visually confirm that both official and `cliproxy/*` models are present and selectable. A build, model count, or catalog file alone is not completion.
+Finally restart Cockpit once more and repeat the structure and two-route probes. Reopen the Codex app and visually confirm that both official and `CPA/*` models are present and selectable, with no old-prefix alias. A build, model count, or catalog file alone is not completion.
 
 ## Rollback
 
@@ -550,7 +601,7 @@ Cockpit auto-update can replace this custom build. If Codex suddenly shows only 
 
 1. Check the running Cockpit version, signature, and mixed-routing marker.
 2. Check whether the sidecar manifest still contains `modelRouting`.
-3. Check whether the five OAuth accounts and `cliproxy` namespace remain intact.
+3. Check whether the five OAuth accounts and uppercase `CPA` namespace remain intact.
 4. Test both routes and inspect logs.
 5. Rebuild only if the official binary still lacks the feature.
 
