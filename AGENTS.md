@@ -64,3 +64,16 @@ Windows Codex CLI ChatGPT login has a reused refresh token; this produces login
 errors but does not prevent requests through `codex_local_access`. Do not copy
 Mac `auth.json` to fix it. Use a fresh Windows `codex login --device-auth` only
 if native Codex account features are needed.
+
+RPi SSH-host Codex context (verified 2026-09-02) is independent of the Mac and
+uses provider `pi5-api`. Its `/home/jamie/.codex/config.toml` points
+`model_catalog_json` to
+`/home/jamie/.codex/rpi-all-models-500k-catalog.json`. The static catalog has 71
+current models, each declaring context 526316 and compact 450000; Codex applies
+95 percent and reports an actual window of 500000. Fresh real
+`gpt-5.6-luna` and `cliproxy/grok-4.6` tasks both returned `OK` with
+`model_context_window = 500000`. Existing tasks retain the context snapshot
+from creation. The pre-change config backup is under
+`/home/jamie/.codex/backups/20260902-before-all-models-500k/`. RPi's native
+ChatGPT refresh token is invalid, but `pi5-api` requests still work; do not copy
+another host's rotating `auth.json` to repair it.

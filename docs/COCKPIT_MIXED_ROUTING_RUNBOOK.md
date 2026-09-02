@@ -145,6 +145,42 @@ and one `cliproxy/*` end-to-end request afterward and confirm the
 `--device-auth` as the device-code alternative to opening a browser directly:
 <https://developers.openai.com/codex/cli/reference>.
 
+## RPi SSH-host Codex context
+
+Remote SSH tasks use the remote host's own Codex configuration; the Mac managed
+catalog is not inherited. This matches the official remote-connections behavior:
+<https://developers.openai.com/codex/remote-connections>.
+
+Known-good state verified on 2026-09-02:
+
+- Provider remains `pi5-api`; do not replace its URL or authentication fields.
+- `/home/jamie/.codex/config.toml` sets:
+
+  ```toml
+  model_catalog_json = "/home/jamie/.codex/rpi-all-models-500k-catalog.json"
+  ```
+
+- The catalog was generated from the 71 models the RPi resolver actually saw.
+  Every entry uses context 526316, max context 526316, and compact 450000.
+  Codex applies its 95-percent effective factor and records
+  `model_context_window = 500000`.
+- Fresh real `gpt-5.6-luna` and `cliproxy/grok-4.6` tasks both returned `OK` and
+  recorded a 500000 window. Both test tasks were deleted after verification.
+- The original config is backed up under
+  `/home/jamie/.codex/backups/20260902-before-all-models-500k/`.
+- Existing tasks keep their creation-time window. The pre-change
+  `更新並驗證 Perplexity 模型` task therefore remains at 124518; create a new
+  task to receive 500000.
+- The RPi native ChatGPT refresh token is invalid and produces login warnings,
+  but both `pi5-api` routes still completed. Use an independent device login if
+  native account features are required; never copy another host's rotating
+  `auth.json`.
+
+When the Pi5 model set changes, regenerate the RPi catalog from `codex debug
+models`, reapply the three numeric fields to every current entry, and repeat one
+official plus one namespaced real task. Never assume the historical count of 71
+is fixed.
+
 ## Root cause and what was actually patched
 
 The official Cockpit Tools 1.3.34 release binary did not contain the newer mixed-routing implementation, although the then-current upstream source contained `modelRouting`. Editing the generated Codex model catalog did not solve the problem because Cockpit owns and rewrites that file, and a catalog row does not create a working request route.
