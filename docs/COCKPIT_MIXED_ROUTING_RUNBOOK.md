@@ -80,7 +80,8 @@ Mac upgrade state verified on 2026-09-02:
   request records showed the official request selected an OAuth account while
   the namespaced request did not use the OAuth pool.
 - The live route store and manifest now contain exactly one uppercase namespace,
-  `CPA`, and expose 60 `CPA/*` models with no `cliproxy/*` alias. Cockpit 1.3.36
+  `CPA`, and expose 58 `CPA/*` models with no `cliproxy/*` alias. The Mac catalog
+  contains 66 models in total. Cockpit 1.3.36
   preserves this value when loading the persisted collection, but its mixed-route
   form normalizes a namespace to lowercase when saving. Stop Cockpit before an
   exact persisted-store repair, restart immediately, and verify both files plus
@@ -110,14 +111,13 @@ Known-good state verified on 2026-09-02:
   fingerprint were copied from the Mac over encrypted SSH. Historical account
   backups and the Mac `auth.json` were deliberately excluded.
 - The generated manifest contains five OAuth records, `defaultRoute = "oauth"`,
-  `failurePolicy = "strict"`, and a `CPA` route with 60 upstream models and no
+  `failurePolicy = "strict"`, and a `CPA` route with 58 upstream models and no
   old-prefix alias.
-- `%USERPROFILE%\.codex\user-mixed-routing-model-catalog.json` is byte-identical
-  to the Mac file. Its 69 entries all use context 500000, compact 450000, and
-  effective percent 100. The sidecar currently advertises one additional
-  official `gpt-5.3-codex` model that is intentionally absent from both copies
-  of the static catalog; do not add it only to Windows if exact Mac parity is
-  required.
+- `%USERPROFILE%\.codex\user-mixed-routing-model-catalog.json` contains 67
+  entries: 58 `CPA/*` models plus the official models available on that host.
+  All entries use context 500000, compact 450000, and effective percent 100.
+  Do not force byte-identical total catalogs across hosts because their official
+  model sets may differ.
 - `%USERPROFILE%\.codex\config.toml` selects `codex_local_access` and the
   user-owned catalog using Windows paths. Mac-only paths and MCP configuration
   were not copied.
@@ -175,7 +175,8 @@ Known-good state verified on 2026-09-02:
   model_catalog_json = "/home/jamie/.codex/rpi-all-models-500k-catalog.json"
   ```
 
-- The catalog was generated from the 71 models the RPi resolver actually saw.
+- The catalog was generated from the 69 models the RPi resolver actually saw,
+  including 58 `CPA/*` models.
   Every entry uses context 526316, max context 526316, and compact 450000.
   Codex applies its 95-percent effective factor and records
   `model_context_window = 500000`.
@@ -206,6 +207,45 @@ models`, reapply the three numeric fields to every current entry, and repeat one
 official plus one namespaced real task. Never assume the historical count of 71
 is fixed.
 
+## PPLX model-list synchronization
+
+Known-good state verified on 2026-09-02:
+
+- The PPLX proxy advertises 23 models.
+- Pi5 CLIProxyAPI advertises 58 models after adding `pplx/grok-4.6` and
+  `pplx/kimi-k3` and removing `pplx/gpt-5.4`.
+- Every host exposes 58 `CPA/*` models. Total catalogs differ by host: Mac 66,
+  CTPS 67, WSL 67, and RPi 69 because their official model sets differ.
+- Mac and RPi use raw context 526316 with Codex's 95-percent factor; CTPS and
+  WSL use raw context 500000 with an explicit 100-percent factor. All four
+  produce a usable 500000 context and compact at 450000.
+
+Refreshing the model list in Cockpit's provider editor is not sufficient in
+1.3.36. The existing API key's mixed route embeds its own
+`providerGateway.upstreamModels` snapshot, and Cockpit does not refresh that
+snapshot when only the provider catalog is saved. Synchronize and verify all of
+the following without exposing the provider key or OAuth material:
+
+1. Pi5 CLIProxyAPI `config.yaml` and its authenticated `/v1/models` response.
+2. The route snapshot in Cockpit's persistent collection and live manifest.
+3. Mac's managed catalog and the static catalogs on CTPS, WSL, and RPi.
+4. `codex debug models` and one real new-model request on every target host.
+
+Preserve the uppercase namespace `CPA`. Cockpit 1.3.36 may lowercase it when a
+mixed route is saved in the UI, so recheck the persistent collection and live
+manifest after any edit. Never assume the API key with `modelRouting` is array
+index zero; select the record by the presence of `modelRouting`. Do not rewrite
+the credential-bearing Windows store through PowerShell `ConvertTo-Json`, which
+can alter or lose route data.
+
+Codex sends Chat Completions message content as an array of typed text parts.
+PPLX proxy commit `f215bde` normalizes `input_text` and `text` parts before
+prompt detection; without it, the proxy raises `AttributeError` and the Cockpit
+sidecar returns an upstream 503. The fix is covered by the PPLX proxy unit suite
+and a real content-array request. Perplexity may still substitute a newly named
+model with another model such as GPT-5 Nano; the proxy reports that substitution
+in the answer instead of treating the advertised model as unavailable.
+
 ## CPA namespace deployment across hosts
 
 Known-good state verified on 2026-09-02:
@@ -214,7 +254,7 @@ Known-good state verified on 2026-09-02:
   visible `cliproxy/*` alias. Provider names, service names, and the
   `route-cliproxyapi-pi5` internal route ID do not need renaming.
 - Mac: the Cockpit collection and live manifest use `CPA`; the manifest exposes
-  60 `CPA/*` models and zero old-prefix models. Real `gpt-5.6-luna` and
+  58 `CPA/*` models and zero old-prefix models. Real `gpt-5.6-luna` and
   `CPA/grok-4.3` Responses requests returned HTTP 200. A real Codex CLI session
   selected `CPA/grok-4.3`, replied successfully, and recorded 500000 context.
   The pre-change files are under
@@ -225,16 +265,16 @@ Known-good state verified on 2026-09-02:
   is the known-good pre-incident default-instance state and was restored after
   an attempted route sync broke API Service client launch.
 - CTPS Windows: Cockpit and sidecar run in interactive Session 1; the store and
-  live manifest use `CPA`, with 60 new-prefix and zero old-prefix models. Both
+  live manifest use `CPA`, with 58 new-prefix and zero old-prefix models. Both
   real routes returned HTTP 200, and a Codex CLI session using
   `CPA/grok-4.3` recorded 500000 context. The pre-change backup is
   `%USERPROFILE%\.cockpit-migration-backups\20260902-before-cpa-prefix`.
 - WSL: provider `ctps_local_access` still points to CTPS. The catalog is
-  `/home/jamie/.codex/wsl-cpa-500k-catalog.json`, with 60 new-prefix and zero
+  `/home/jamie/.codex/wsl-cpa-500k-catalog.json`, with 58 new-prefix and zero
   old-prefix models. After reloading Codex 0.143.0 app-server, fresh official
   and `CPA/grok-4.3` CLI sessions both succeeded with 500000 context. The
   pre-change backup is `/home/jamie/.codex/backups/20260902-before-cpa-prefix/`.
-- RPi: provider `pi5-api` is unchanged. Its 71-model catalog contains 60
+- RPi: provider `pi5-api` is unchanged. Its 69-model catalog contains 58
   `CPA/*` entries and no old prefix. After reloading Codex 0.147.0 app-server,
   fresh official and `CPA/grok-4.6` CLI sessions both succeeded with 500000
   context. The pre-existing Perplexity task also accepted a supported model

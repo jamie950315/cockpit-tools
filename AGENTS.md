@@ -95,11 +95,24 @@ The Windows active static catalog also uses `CPA · <upstream-id>` display names
 but no default-instance file should be created solely to mirror the API Service
 route.
 
+Current PPLX/CLIProxyAPI model synchronization (verified 2026-09-02): the PPLX
+proxy advertises 23 models, and Pi5 CLIProxyAPI advertises 58 models after adding
+`pplx/grok-4.6` and `pplx/kimi-k3` and removing `pplx/gpt-5.4`. The corresponding
+`CPA/*` catalogs contain 58 namespaced models on every host: Mac has 66 total,
+CTPS and WSL have 67 total, and RPi has 69 total because their official model
+sets differ. Do not force total catalog parity across hosts. Cockpit 1.3.36 does
+not propagate a saved provider model refresh into an existing mixed-route
+`providerGateway.upstreamModels` snapshot. After a provider refresh, synchronize
+that route snapshot, the live manifest, and every host catalog, while preserving
+uppercase `CPA`, then verify the two new IDs and absence of the removed ID with
+`codex debug models`. PPLX proxy commit `f215bde` accepts Codex/OpenAI
+content-part arrays; keep this compatibility when changing its prompt handling.
+
 RPi SSH-host Codex context (verified 2026-09-02) is independent of the Mac and
 uses provider `pi5-api`. Its `/home/jamie/.codex/config.toml` points
 `model_catalog_json` to
-`/home/jamie/.codex/rpi-all-models-500k-catalog.json`. The static catalog has 71
-current models, each declaring context 526316 and compact 450000; Codex applies
+`/home/jamie/.codex/rpi-all-models-500k-catalog.json`. The static catalog has 69
+current models, including 58 `CPA/*`, each declaring context 526316 and compact 450000; Codex applies
 95 percent and reports an actual window of 500000. Fresh real
 `gpt-5.6-luna` and `CPA/grok-4.6` tasks both returned `OK` with
 `model_context_window = 500000`. Existing tasks retain the context snapshot
@@ -113,7 +126,7 @@ ChatGPT refresh token is invalid, but `pi5-api` requests still work; do not copy
 another host's rotating `auth.json` to repair it.
 
 WSL uses provider `ctps_local_access`, the CTPS local-access URL, and
-`/home/jamie/.codex/wsl-cpa-500k-catalog.json`. Its catalog contains 60
+`/home/jamie/.codex/wsl-cpa-500k-catalog.json`. Its catalog contains 58
 `CPA/*` entries with `CPA · <upstream-id>` display names and no old prefix.
 After reloading Codex 0.143.0 app-server,
 fresh official and `CPA/*` CLI sessions both returned the expected answer with
