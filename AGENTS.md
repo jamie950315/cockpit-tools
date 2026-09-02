@@ -36,8 +36,8 @@ not control namespaced model visibility.
 
 Current Codex context overrides (verified 2026-09-02) use the external,
 user-owned `~/.codex/user-mixed-routing-model-catalog.json` selected by
-`model_catalog_json`; they do not modify the upstream 1.3.35 app. The catalog
-sets `gpt-5.6-sol` to 372000/335000 and `cliproxy/grok-4.6` to 500000/450000,
-with `effective_context_window_percent = 100` for those two models only. Because
-this is a static catalog, regenerate and revalidate it whenever Cockpit's visible
-model set changes.
+`model_catalog_json`; they do not modify the upstream 1.3.35 app. Every catalog
+model is deliberately forced to context 500000, compact 450000, and
+`effective_context_window_percent = 100`, regardless of its upstream limit.
+Because this is a static catalog, regenerate and revalidate it whenever
+Cockpit's visible model set changes.
