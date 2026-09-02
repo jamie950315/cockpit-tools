@@ -73,7 +73,11 @@ current models, each declaring context 526316 and compact 450000; Codex applies
 95 percent and reports an actual window of 500000. Fresh real
 `gpt-5.6-luna` and `cliproxy/grok-4.6` tasks both returned `OK` with
 `model_context_window = 500000`. Existing tasks retain the context snapshot
-from creation. The pre-change config backup is under
+while the current app-server writer remains active. The existing
+`更新並驗證 Perplexity 模型` task was upgraded in place from 124518 to 500000
+by restarting only the idle RPi Codex 0.147.0 app-server, then sending a new
+minimal turn to the same task ID; its history and project state were preserved.
+Do this only after confirming no RPi task is active. The pre-change config backup is under
 `/home/jamie/.codex/backups/20260902-before-all-models-500k/`. RPi's native
 ChatGPT refresh token is invalid, but `pi5-api` requests still work; do not copy
 another host's rotating `auth.json` to repair it.

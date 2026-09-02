@@ -168,9 +168,15 @@ Known-good state verified on 2026-09-02:
   recorded a 500000 window. Both test tasks were deleted after verification.
 - The original config is backed up under
   `/home/jamie/.codex/backups/20260902-before-all-models-500k/`.
-- Existing tasks keep their creation-time window. The pre-change
-  `更新並驗證 Perplexity 模型` task therefore remains at 124518; create a new
-  task to receive 500000.
+- Existing tasks keep their creation-time window while their app-server writer
+  remains active. The pre-change `更新並驗證 Perplexity 模型` task was upgraded
+  in place from 124518 to 500000 by confirming all RPi tasks were idle,
+  restarting only the RPi Codex 0.147.0 app-server that owns
+  `app-server-control.sock`, and then sending a minimal new turn to the same task
+  ID. Its history and project state were preserved; the latest token record and
+  reply were 500000 and `CONTEXT-500K-OK`. Do not restart that writer while any
+  RPi task is active, and do not edit old rollout token records to fake a larger
+  window.
 - The RPi native ChatGPT refresh token is invalid and produces login warnings,
   but both `pi5-api` routes still completed. Use an independent device login if
   native account features are required; never copy another host's rotating
