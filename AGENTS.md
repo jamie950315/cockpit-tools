@@ -17,9 +17,15 @@ under `ops/cliproxyapi/`. Keep the container pinned by immutable digest through
 its `.env`; an update is successful only after the runtime version, model list,
 five TEAM auth files, and five real Responses requests pass.
 
-Current installed Cockpit state (verified 2026-09-01): the upstream 1.3.35
+Current installed Cockpit state (verified 2026-09-02): the upstream 1.3.36
 arm64 release is installed at `/Applications/Cockpit Tools.app`; official OAuth
-and `cliproxy/*` routing both passed real Responses requests. The OAuth pool has
+and `cliproxy/*` routing both passed real Responses requests after the upgrade.
+On its first launch, 1.3.36 restored takeover before the new setting could be
+disabled and changed `model_catalog_json` back to its managed catalog. The UI
+toggle did not persist a false value in the existing user config, so the durable
+repair was to set `codex_auto_restore_takeover_on_launch = false` explicitly in
+Cockpit's config and restore the user-owned catalog reference. A subsequent
+manual relaunch preserved both values. The OAuth pool has
 five distinct TEAM credential records, but that does not mean five distinct
 ChatGPT login identities. With `routingStrategy = "auto"` and session affinity
 enabled, ten official requests using distinct session IDs all selected one OAuth
@@ -34,7 +40,8 @@ the provider gateway and its `upstreamModels`; the sidecar advertises those
 models with the route namespace through its model endpoint. Pool membership does
 not control namespaced model visibility.
 
-Current Codex context overrides (verified 2026-09-02) use the external,
+Current Codex context overrides (verified after upgrading to 1.3.36 on
+2026-09-02) use the external,
 user-owned `~/.codex/user-mixed-routing-model-catalog.json` selected by
 `model_catalog_json`; they do not modify the upstream 1.3.35 app. Every catalog
 model is deliberately forced to context 500000, compact 450000, and

@@ -50,6 +50,27 @@ the upstream release:
   live selector catalog contained 10 official and 60 namespaced models at
   verification time.
 
+Mac upgrade state verified on 2026-09-02:
+
+- `/Applications/Cockpit Tools.app` is now upstream version 1.3.36 arm64.
+- The first 1.3.36 launch ran takeover restoration while the new setting was
+  still enabled and changed `model_catalog_json` from the user-owned 500K
+  catalog to `cockpit-model-catalog.json`. Disabling the switch afterward could
+  not undo that already-completed write.
+- On this migrated configuration, the UI switch appeared disabled but did not
+  serialize `codex_auto_restore_takeover_on_launch` into Cockpit's existing
+  config. A missing field continued to behave as enabled at the next launch.
+  Set the field explicitly to `false`, restore
+  `model_catalog_json = "user-mixed-routing-model-catalog.json"`, and confirm
+  both survive a user-performed relaunch.
+- After that relaunch, Codex resolved 69 models and every entry used context
+  500000, compact 450000, and effective percent 100. Real
+  `gpt-5.6-luna` and `cliproxy/grok-4.3` requests both returned HTTP 200; the
+  request records showed the official request selected an OAuth account while
+  the namespaced request did not use the OAuth pool.
+- Do not quit Cockpit remotely during validation when the current Codex task
+  depends on its sidecar. Ask the user to relaunch it and wait for port 57204.
+
 ## CTPS Windows replica
 
 Known-good state verified on 2026-09-02:
