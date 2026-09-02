@@ -50,6 +50,70 @@ the upstream release:
   live selector catalog contained 10 official and 60 namespaced models at
   verification time.
 
+## CTPS Windows replica
+
+Known-good state verified on 2026-09-02:
+
+- Host: CTPS, Windows 11 x64 with an interactive desktop session.
+- Installed app: official Cockpit Tools 1.3.36 x64 at
+  `%LOCALAPPDATA%\Cockpit Tools\cockpit-tools.exe`.
+- Installed Codex CLI: 0.152.1.
+- Pre-migration state is retained under
+  `%USERPROFILE%\.cockpit-migration-backups\20260902-175346-before-cockpit`.
+- The Cockpit encryption keys, five current OAuth credential details, one
+  CLIProxyAPI provider detail, routing collection, provider collection, and
+  fingerprint were copied from the Mac over encrypted SSH. Historical account
+  backups and the Mac `auth.json` were deliberately excluded.
+- The generated manifest contains five OAuth records, `defaultRoute = "oauth"`,
+  `failurePolicy = "strict"`, and a `cliproxy` route with 60 upstream models.
+- `%USERPROFILE%\.codex\user-mixed-routing-model-catalog.json` is byte-identical
+  to the Mac file. Its 69 entries all use context 500000, compact 450000, and
+  effective percent 100. The sidecar currently advertises one additional
+  official `gpt-5.3-codex` model that is intentionally absent from both copies
+  of the static catalog; do not add it only to Windows if exact Mac parity is
+  required.
+- `%USERPROFILE%\.codex\config.toml` selects `codex_local_access` and the
+  user-owned catalog using Windows paths. Mac-only paths and MCP configuration
+  were not copied.
+- `codex_auto_restore_takeover_on_launch` is disabled. Cockpit Tools 1.3.36 can
+  otherwise replace the user-owned `model_catalog_json` reference with its
+  managed catalog when it restores takeover at launch.
+- After stopping and relaunching Cockpit in interactive Session 1, both a real
+  `gpt-5.6-luna` Responses request and a real `cliproxy/grok-4.3` Responses
+  request returned HTTP 200 with the expected answer. The request database
+  recorded both as successful sidecar requests. Only one OAuth record was
+  anonymously observed serving the official checks, so this does not prove all
+  five credentials independently work.
+
+Cockpit must run in the interactive Windows desktop session. A process started
+directly by SSH runs in Session 0 and exits. For an attended launch, start
+Cockpit from the Windows desktop or Start menu. A temporary Scheduled Task may
+be used to launch it in the logged-in session during remote recovery, but remove
+that task after the app and sidecar are running.
+
+The existing Windows Codex CLI ChatGPT login currently reports that a refresh
+token was reused. `codex login status` can still say `Logged in using ChatGPT`
+when that cached login can no longer refresh. This is separate from the five
+Cockpit OAuth records: both official and namespaced models still work through
+`codex_local_access`, although the CLI logs repeated 401 authentication errors
+for native account services.
+
+Do not copy the Mac `~/.codex/auth.json` to Windows. Sharing one rotating
+refresh token between hosts can make either copy stale. If Windows needs native
+Codex account features, use the official independent login flow:
+
+```powershell
+codex logout
+codex login --device-auth
+codex login status
+```
+
+The user must complete the browser/device authorization. Repeat one official
+and one `cliproxy/*` end-to-end request afterward and confirm the
+`refresh_token_reused` error is gone. The official Codex CLI reference documents
+`--device-auth` as the device-code alternative to opening a browser directly:
+<https://developers.openai.com/codex/cli/reference>.
+
 ## Root cause and what was actually patched
 
 The official Cockpit Tools 1.3.34 release binary did not contain the newer mixed-routing implementation, although the then-current upstream source contained `modelRouting`. Editing the generated Codex model catalog did not solve the problem because Cockpit owns and rewrites that file, and a catalog row does not create a working request route.

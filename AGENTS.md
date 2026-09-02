@@ -41,3 +41,16 @@ model is deliberately forced to context 500000, compact 450000, and
 `effective_context_window_percent = 100`, regardless of its upstream limit.
 Because this is a static catalog, regenerate and revalidate it whenever
 Cockpit's visible model set changes.
+
+CTPS Windows deployment (verified 2026-09-02): official Cockpit Tools 1.3.36
+x64 and Codex CLI 0.152.1 are installed. Its Cockpit store contains the same
+five OAuth credential records and CLIProxyAPI provider copied over encrypted
+SSH, while its user-owned model catalog is byte-identical to the Mac catalog.
+After a full Cockpit restart, real official and `cliproxy/*` Responses requests
+both returned HTTP 200. Keep
+`codex_auto_restore_takeover_on_launch = false` on CTPS so Cockpit 1.3.36 does
+not replace the user-owned catalog reference with its managed catalog. The old
+Windows Codex CLI ChatGPT login has a reused refresh token; this produces login
+errors but does not prevent requests through `codex_local_access`. Do not copy
+Mac `auth.json` to fix it. Use a fresh Windows `codex login --device-auth` only
+if native Codex account features are needed.
