@@ -49,6 +49,12 @@ saved namespace to lowercase. After editing or copying that route in the UI,
 recheck both the persistent collection and live manifest before trusting the
 selector. Existing tasks may retain their old model name until their host's
 idle app-server is reloaded and a supported model override is sent.
+Model IDs use `CPA/<upstream-id>` and their selector display names use
+`CPA · <upstream-id>`; changing only the ID leaves the old provider label in
+Codex. Keep the default Codex instance's `modelRouting` synchronized with the
+API Service route so the launch-preview model settings show `CLIProxyAPI` as
+the source instead of `路由缺失`. Do not press Apply in that dialog solely to
+inspect it, because 1.3.36 may lowercase the uppercase namespace on save.
 
 Current Mac Codex context overrides (verified after upgrading to 1.3.36 on
 2026-09-02) use Cockpit's managed catalog so API Service takeover remains the
@@ -72,6 +78,9 @@ Windows Codex CLI ChatGPT login has a reused refresh token; this produces login
 errors but does not prevent requests through `codex_local_access`. Do not copy
 Mac `auth.json` to fix it. Use a fresh Windows `codex login --device-auth` only
 if native Codex account features are needed.
+The Windows active static catalog also uses `CPA · <upstream-id>` display names,
+and its default Codex instance route is synchronized to the same uppercase
+`CPA` API Service route.
 
 RPi SSH-host Codex context (verified 2026-09-02) is independent of the Mac and
 uses provider `pi5-api`. Its `/home/jamie/.codex/config.toml` points
@@ -92,6 +101,7 @@ another host's rotating `auth.json` to repair it.
 
 WSL uses provider `ctps_local_access`, the CTPS local-access URL, and
 `/home/jamie/.codex/wsl-cpa-500k-catalog.json`. Its catalog contains 60
-`CPA/*` entries and no old prefix. After reloading Codex 0.143.0 app-server,
+`CPA/*` entries with `CPA · <upstream-id>` display names and no old prefix.
+After reloading Codex 0.143.0 app-server,
 fresh official and `CPA/*` CLI sessions both returned the expected answer with
 `model_context_window = 500000`.

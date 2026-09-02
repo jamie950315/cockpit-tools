@@ -86,6 +86,11 @@ Mac upgrade state verified on 2026-09-02:
   exact persisted-store repair, restart immediately, and verify both files plus
   both real request paths. Editing or copying the route in the UI requires the
   same recheck.
+- The selector label is a separate catalog field from the model ID. Every
+  namespaced model uses ID `CPA/<upstream-id>` and display name
+  `CPA · <upstream-id>`. The default Codex instance's `modelRouting` mirrors the
+  API Service route; without that second link, the launch-preview editor reports
+  `路由缺失` even when direct API requests still work.
 - Do not quit Cockpit remotely during validation when the current Codex task
   depends on its sidecar. Ask the user to relaunch it and wait for port 57204.
 
@@ -213,6 +218,11 @@ Known-good state verified on 2026-09-02:
   selected `CPA/grok-4.3`, replied successfully, and recorded 500000 context.
   The pre-change files are under
   `~/.antigravity_cockpit/backups/manual/20260902-before-cpa-prefix/`.
+- Mac display-name and instance-route corrections are backed up under
+  `~/.codex/backups/20260902-before-cpa-display-name/` and
+  `~/.antigravity_cockpit/backups/manual/20260902-before-cpa-display-route-sync/`.
+  The launch-preview editor was visually verified to show
+  `CPA · pplx/gpt` with source `CLIProxyAPI`, not `路由缺失`.
 - CTPS Windows: Cockpit and sidecar run in interactive Session 1; the store and
   live manifest use `CPA`, with 60 new-prefix and zero old-prefix models. Both
   real routes returned HTTP 200, and a Codex CLI session using
@@ -229,6 +239,12 @@ Known-good state verified on 2026-09-02:
   context. The pre-existing Perplexity task also accepted a supported model
   override to `CPA/grok-4.6` and recorded 500000 on its latest turn. The
   pre-change backup is `/home/jamie/.codex/backups/20260902-before-cpa-prefix/`.
+
+All active and recovery catalogs must update `display_name` and `description`
+alongside `model_id` or `slug`. Keep each host's pre-display-name backup under
+its `20260902-before-cpa-display-name` backup directory. A successful request
+does not prove the selector label is correct; verify the Mac launch-preview UI
+and inspect the active catalog on each remote host.
 
 The current 1.3.36 UI lowercases a namespace when its mixed-route form is
 saved, even though startup accepts the persisted uppercase value. Do not edit
