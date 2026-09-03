@@ -268,6 +268,50 @@ private func model(_ id: String, name: String? = nil) -> CatalogModel {
     #expect(route?["providerGateway"]?.objectValue?["apiKey"] == .string("gateway-secret"))
 }
 
+@Test func removesProviderDeletedModelsFromRouteAndCatalogsWithBackups() throws {
+    let root = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let paths = CatalogPaths(
+        config: root.appending(path: "config.json"),
+        managedCatalog: root.appending(path: "catalog.json"),
+        manifest: root.appending(path: "manifest.json"),
+        providerCatalog: root.appending(path: "providers.json"),
+        routeStore: root.appending(path: "routes.json"),
+        backups: root.appending(path: "backups", directoryHint: .isDirectory)
+    )
+    try Data(#"{"future":"keep","models":[{"model_id":"CPA/keep","display_name":"Keep"},{"model_id":"CPA/removed-a","display_name":"Removed A"},{"model_id":"CPA/removed-b","display_name":"Removed B"}]}"#.utf8).write(to: paths.config)
+    try Data(#"{"models":[{"slug":"CPA/keep","display_name":"Keep","priority":1000,"visibility":"list"},{"slug":"CPA/removed-a","display_name":"Removed A","priority":1001,"visibility":"list","future":"keep"},{"slug":"CPA/removed-b","display_name":"Removed B","priority":1002,"visibility":"list"}]}"#.utf8).write(to: paths.managedCatalog)
+    try Data(#"{"modelIds":["CPA/keep","CPA/removed-a","CPA/removed-b"]}"#.utf8).write(to: paths.manifest)
+    try Data(#"[{"name":"CLIProxyAPI","modelCatalog":["keep"],"apiKeys":["provider-secret"]}]"#.utf8).write(to: paths.providerCatalog)
+    try Data(#"{"topFuture":"keep","apiKeys":[{"key":"plain-secret","modelRouting":null},{"key":"routed-secret","unknown":"keep","modelRouting":{"defaultRoute":"oauth","failurePolicy":"strict","routes":[{"namespace":"CPA","providerGateway":{"apiKey":"gateway-secret","wireApi":"responses","upstreamModels":["keep","removed-a","removed-b"]}}]}}]}"#.utf8).write(to: paths.routeStore)
+
+    let repository = CatalogRepository(paths: paths)
+    let loaded = try repository.load()
+    let result = try repository.removeProviderRemovals(loaded)
+    #expect(result.removedFromRoute == ["CPA/removed-a", "CPA/removed-b"])
+    #expect(result.removedFromCatalog == ["CPA/removed-a", "CPA/removed-b"])
+    #expect(result.backupDirectory != nil)
+
+    let reloaded = try repository.load()
+    #expect(reloaded.routeModelIDs == ["CPA/keep"])
+    #expect(reloaded.models.map(\.modelID) == ["CPA/keep"])
+    #expect(reloaded.routedModelIDs == ["CPA/keep", "CPA/removed-a", "CPA/removed-b"])
+    #expect(reloaded.routeRoot["topFuture"] == .string("keep"))
+    let routedAccount = reloaded.routeRoot["apiKeys"]?.arrayValue?[1].objectValue
+    #expect(routedAccount?["key"] == .string("routed-secret"))
+    #expect(routedAccount?["unknown"] == .string("keep"))
+    let route = routedAccount?["modelRouting"]?.objectValue?["routes"]?.arrayValue?.first?.objectValue
+    #expect(route?["providerGateway"]?.objectValue?["apiKey"] == .string("gateway-secret"))
+    #expect(route?["providerGateway"]?.objectValue?["upstreamModels"] == .array([.string("keep")]))
+
+    let backup = try #require(result.backupDirectory)
+    #expect(FileManager.default.fileExists(atPath: backup.appending(path: "config.json").path))
+    #expect(FileManager.default.fileExists(atPath: backup.appending(path: "catalog.json").path))
+    #expect(FileManager.default.fileExists(atPath: backup.appending(path: "routes.json").path))
+}
+
 @Test func refusesUnsafeOrExternallyChangedRouteSynchronization() throws {
     let root = URL(fileURLWithPath: NSTemporaryDirectory())
         .appending(path: UUID().uuidString, directoryHint: .isDirectory)

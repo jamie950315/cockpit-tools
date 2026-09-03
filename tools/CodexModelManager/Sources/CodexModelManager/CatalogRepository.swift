@@ -76,7 +76,7 @@ struct CatalogRepository: Sendable {
               try readData(paths.managedCatalog) == loaded.managedFingerprint else {
             throw CatalogError.filesChangedExternally
         }
-        let routed = Set(loaded.routedModelIDs.map { $0.lowercased() })
+        let routed = Set(loaded.routeModelIDs.map { $0.lowercased() })
         try CatalogEditor.validate(models: models, routedIDs: routed)
         guard CatalogEditor.preservesLockedOrder(
             models: models,
@@ -137,7 +137,10 @@ struct CatalogRepository: Sendable {
             return ModelSyncResult(addedToRoute: [], addedToCatalog: [], backupDirectory: nil)
         }
 
-        let updatedRouteRoot = try updatingRoute(root: loaded.routeRoot, appending: addedRawIDs)
+        let updatedRouteRoot = try updatingRoute(
+            root: loaded.routeRoot,
+            upstreamModels: loaded.routeModelIDs.compactMap(Self.removeCPAPrefix) + addedRawIDs
+        )
         try CatalogEditor.validate(
             models: desiredModels,
             routedIDs: Set(desiredRouteIDs.map { $0.lowercased() })
@@ -180,6 +183,89 @@ struct CatalogRepository: Sendable {
         return ModelSyncResult(
             addedToRoute: addedRawIDs.map { "CPA/\($0)" },
             addedToCatalog: catalogAdditions,
+            backupDirectory: backupDirectory
+        )
+    }
+
+    func removeProviderRemovals(_ loaded: LoadedCatalog) throws -> ModelRemovalResult {
+        guard try readData(paths.config) == loaded.configFingerprint,
+              try readData(paths.managedCatalog) == loaded.managedFingerprint,
+              try readData(paths.providerCatalog) == loaded.providerFingerprint,
+              try readData(paths.routeStore) == loaded.routeFingerprint else {
+            throw CatalogError.filesChangedExternally
+        }
+
+        let providerSet = Set(loaded.providerModelIDs.map { $0.lowercased() })
+        let removedRouteIDs = loaded.routeModelIDs.filter {
+            !providerSet.contains($0.lowercased())
+        }
+        let removedSet = Set(removedRouteIDs.map { $0.lowercased() })
+        let desiredRouteIDs = loaded.routeModelIDs.filter {
+            !removedSet.contains($0.lowercased())
+        }
+        let desiredModels = loaded.models.filter {
+            !removedSet.contains($0.modelID.lowercased())
+        }
+        let removedCatalogIDs = loaded.models
+            .map(\.modelID)
+            .filter { removedSet.contains($0.lowercased()) }
+
+        guard !removedRouteIDs.isEmpty || !removedCatalogIDs.isEmpty else {
+            return ModelRemovalResult(
+                removedFromRoute: [],
+                removedFromCatalog: [],
+                backupDirectory: nil
+            )
+        }
+
+        try CatalogEditor.validate(
+            models: desiredModels,
+            routedIDs: Set(desiredRouteIDs.map { $0.lowercased() })
+        )
+        guard CatalogEditor.preservesLockedOrder(
+            models: desiredModels,
+            lockedModelIDs: loaded.lockedModelIDs
+        ) else {
+            throw CatalogError.lockedModelOrder
+        }
+
+        let updatedRouteRoot = try updatingRoute(
+            root: loaded.routeRoot,
+            upstreamModels: desiredRouteIDs.compactMap(Self.removeCPAPrefix)
+        )
+        var configRoot = loaded.configRoot
+        configRoot["models"] = .array(desiredModels.map { .object($0.fields) })
+        let managedRoot = try rebuildManagedCatalog(
+            root: loaded.managedRoot,
+            models: desiredModels,
+            lockedModelIDs: loaded.lockedModelIDs
+        )
+        let routeData = try encoded(.object(updatedRouteRoot))
+        let configData = try encoded(.object(configRoot))
+        let managedData = try encoded(.object(managedRoot))
+
+        let backupDirectory = try createBackupDirectory()
+        try backup(paths.routeStore, to: backupDirectory)
+        try backup(paths.config, to: backupDirectory)
+        try backup(paths.managedCatalog, to: backupDirectory)
+
+        do {
+            try routeData.write(to: paths.routeStore, options: .atomic)
+            try setPrivatePermissions(paths.routeStore)
+            try managedData.write(to: paths.managedCatalog, options: .atomic)
+            try setPrivatePermissions(paths.managedCatalog)
+            try configData.write(to: paths.config, options: .atomic)
+            try setPrivatePermissions(paths.config)
+        } catch {
+            try? restore(paths.routeStore, from: backupDirectory)
+            try? restore(paths.managedCatalog, from: backupDirectory)
+            try? restore(paths.config, from: backupDirectory)
+            throw error
+        }
+
+        return ModelRemovalResult(
+            removedFromRoute: removedRouteIDs,
+            removedFromCatalog: removedCatalogIDs,
             backupDirectory: backupDirectory
         )
     }
@@ -276,7 +362,7 @@ struct CatalogRepository: Sendable {
 
     private func updatingRoute(
         root: [String: JSONValue],
-        appending additions: [String]
+        upstreamModels: [String]
     ) throws -> [String: JSONValue] {
         let location = try mixedRouteLocation(in: root)
         var result = root
@@ -288,7 +374,7 @@ struct CatalogRepository: Sendable {
               var gateway = route["providerGateway"]?.objectValue else {
             throw CatalogError.missingMixedRoute
         }
-        gateway["upstreamModels"] = .array((location.upstreamModels + additions).map(JSONValue.string))
+        gateway["upstreamModels"] = .array(upstreamModels.map(JSONValue.string))
         route["providerGateway"] = .object(gateway)
         routes[location.routeIndex] = .object(route)
         routing["routes"] = .array(routes)

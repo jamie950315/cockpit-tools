@@ -14,14 +14,17 @@ modify the Cockpit Tools, Codex, or ChatGPT application binaries.
   immediately after filtering.
 - Quit the application when its last window is closed.
 - Edit the display name without changing the routed model ID.
-- Add models that are already advertised by Cockpit's live sidecar manifest.
+- Add models that are already present in Cockpit's persisted `CPA` route.
 - Automatically detect provider, mixed-route, and catalog changes while the app
   is open.
 - Synchronize newly refreshed CLIProxyAPI models into the existing `CPA` mixed
   route and both Codex catalogs with one button. Synchronization is additions
   only; it never removes existing models.
 - Clearly identify models removed from the refreshed provider catalog without
-  automatically deleting them from the route or Codex.
+  silently deleting them.
+- Remove all provider-deleted models from the `CPA` route and both Mac Codex
+  catalogs with one button after Cockpit is stopped, with backups of every
+  changed file.
 - Block route synchronization while Cockpit Tools is running so its in-memory
   state cannot overwrite the saved route.
 - Preserve unknown JSON fields and the existing model context configuration.
@@ -60,3 +63,8 @@ restarts either application itself.
 Cockpit's built-in models are detected from the managed catalog as visible,
 unprefixed entries with priority below 1000. Their priority order is fixed.
 Other entries remain movable but cannot cross above that locked block.
+
+When the provider removal warning appears, finish active Codex work and quit
+Cockpit Tools. **Remove deleted models** then removes those entries from the
+persisted `CPA` route and both catalogs. Reopen Cockpit and launch Codex through
+API Service afterward so the live manifest and selector reload the result.

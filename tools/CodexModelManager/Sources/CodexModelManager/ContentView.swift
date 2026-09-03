@@ -99,11 +99,27 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
                             .truncationMode(.middle)
+                        Text(store.isCockpitRunning
+                            ? "請完成使用中的 Codex 工作並關閉 Cockpit Tools 後移除。"
+                            : "將從 CPA 路由與 Codex 清單移除，並先建立備份。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Text("僅偵測，不自動刪除")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
+                    Button {
+                        store.removeDeletedModels()
+                    } label: {
+                        Label(
+                            "移除 \(store.removedProviderModels.count) 個",
+                            systemImage: "trash"
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .disabled(store.isCockpitRunning || store.isDirty || store.isLoading)
+                    .help(store.isCockpitRunning
+                        ? "請先關閉 Cockpit Tools"
+                        : "從 CPA 路由與 Codex 清單移除供應商已刪除的模型")
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 11)
@@ -477,7 +493,7 @@ private struct AddModelsSheet: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("加入已路由模型").font(.title2.weight(.semibold))
-                    Text("只會列出 Cockpit 即時 manifest 已宣告的模型。")
+                    Text("只會列出 Cockpit 持久 CPA 路由已宣告的模型。")
                         .foregroundStyle(.secondary)
                 }
                 Spacer()

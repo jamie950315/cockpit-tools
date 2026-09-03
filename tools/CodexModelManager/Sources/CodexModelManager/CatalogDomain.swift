@@ -88,6 +88,12 @@ struct ModelSyncResult: Sendable {
     let backupDirectory: URL?
 }
 
+struct ModelRemovalResult: Sendable {
+    let removedFromRoute: [String]
+    let removedFromCatalog: [String]
+    let backupDirectory: URL?
+}
+
 struct ModelCatalogDifference: Equatable, Sendable {
     let providerOnly: [String]
     let routeOnly: [String]

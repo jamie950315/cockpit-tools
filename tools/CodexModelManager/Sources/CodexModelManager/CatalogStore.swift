@@ -34,7 +34,7 @@ final class CatalogStore: ObservableObject {
 
     var availableAdditions: [String] {
         let current = Set(models.map { $0.modelID.lowercased() })
-        return routedModelIDs.filter {
+        return routeModelIDs.filter {
             !current.contains($0.lowercased()) && !Self.intentionallyHiddenModelIDs.contains($0.lowercased())
         }
     }
@@ -120,6 +120,32 @@ final class CatalogStore: ObservableObject {
         }
     }
 
+    func removeDeletedModels() {
+        refreshCockpitState()
+        guard !isCockpitRunning, let loaded else {
+            errorMessage = "Cockpit Tools 正在執行。請先完成使用中的 Codex 工作並關閉 Cockpit，再移除模型。"
+            return
+        }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let result = try repository.removeProviderRemovals(loaded)
+            self.loaded = try repository.load()
+            if let refreshed = self.loaded {
+                apply(refreshed)
+            }
+            isDirty = false
+            errorMessage = nil
+            if result.removedFromRoute.isEmpty && result.removedFromCatalog.isEmpty {
+                message = "沒有需要移除的模型。"
+            } else {
+                message = "已移除：路由 \(result.removedFromRoute.count) 個，Codex 清單 \(result.removedFromCatalog.count) 個。請重新開啟 Cockpit，再從 API Service 啟動 Codex。"
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func binding(for id: UUID) -> Binding<CatalogModel> {
         Binding(
             get: { [weak self] in
@@ -162,9 +188,9 @@ final class CatalogStore: ObservableObject {
     }
 
     func addRoutedModels(_ ids: Set<String>) {
-        let routed = Set(routedModelIDs.map { $0.lowercased() })
+        let routed = Set(routeModelIDs.map { $0.lowercased() })
         let existing = Set(models.map { $0.modelID.lowercased() })
-        for id in routedModelIDs where ids.contains(id) && routed.contains(id.lowercased()) && !existing.contains(id.lowercased()) {
+        for id in routeModelIDs where ids.contains(id) && routed.contains(id.lowercased()) && !existing.contains(id.lowercased()) {
             models.append(.newModel(id: id, displayName: Self.defaultDisplayName(for: id)))
         }
         markDirty()
@@ -193,7 +219,7 @@ final class CatalogStore: ObservableObject {
     func sourceLabel(for model: CatalogModel) -> String {
         if isLocked(id: model.id) { return "內建" }
         if !model.modelID.contains("/") { return "官方" }
-        let routed = Set(routedModelIDs.map { $0.lowercased() })
+        let routed = Set(routeModelIDs.map { $0.lowercased() })
         return routed.contains(model.modelID.lowercased()) ? "已路由" : "不可用"
     }
 

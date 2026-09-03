@@ -13,12 +13,13 @@ the API key by non-null `modelRouting` rather than array position, and never
 display, log, or alter API keys, OAuth data, account IDs, or unrelated route
 fields.
 
-Synchronization is additions-only. Never modify the live manifest, remove
-models automatically, run a persistent watcher outside the app, or write the
-route store while Cockpit Tools is running. Back up the credential-bearing
-route store with mode 0600 before changing it and require a user-controlled
-Cockpit relaunch afterward. Provider removals must be detected and shown as a
-non-destructive difference.
+Provider synchronization adds models automatically but never removes them
+silently. An explicit removal action may delete provider-missing models from
+the uppercase `CPA` upstream snapshot and both Mac catalogs. Never modify the
+live manifest, run a persistent watcher outside the app, or write the route
+store while Cockpit Tools is running. Back up the credential-bearing route
+store with mode 0600 before changing it and require a user-controlled Cockpit
+relaunch afterward.
 
 Treat visible, unprefixed managed-catalog entries with priority below 1000 as
 Cockpit built-ins. Keep them fixed at the top in priority order and reject any

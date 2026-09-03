@@ -21,8 +21,10 @@ Before publishing code changes, run the relevant frontend, Go, Rust, and macOS b
 
 The standalone native macOS utility under `tools/CodexModelManager/` manages
 the ordered model definitions used by Cockpit's experimental catalog. It may
-reorder models, change display names, and add models already advertised by the
-live sidecar manifest, but it must never edit routing stores or credentials.
+reorder models, change display names, and add models already present in the
+persisted `CPA` route. It may only add or remove model IDs in the route-bearing
+API key's uppercase `CPA` upstream list; it must never edit credentials or
+unrelated routing fields.
 Cockpit built-in models remain locked at the top in their catalog priority
 order; other models can be selected and moved repeatedly with the Up/Down keys
 but cannot cross that boundary.
@@ -155,18 +157,19 @@ compatibility when changing its prompt handling.
 The native `tools/CodexModelManager` app can now detect provider, persisted
 mixed-route, live-manifest, and Mac Codex catalog differences while it is open.
 Its **同步模型** action is additions-only and extends the route-bearing API
-key's uppercase `CPA` upstream snapshot plus both Mac catalogs. It blocks route
-writes while Cockpit is running, never edits the live manifest or restarts apps,
-and requires a user-controlled Cockpit relaunch followed by API Service launch.
-Provider removals are shown as a non-destructive difference and are never
-deleted automatically.
+key's uppercase `CPA` upstream snapshot plus both Mac catalogs. Provider
+removals are shown as a difference with an explicit one-click removal action
+that deletes them from that upstream snapshot and both catalogs. Both actions
+block route writes while Cockpit is running, never edit the live manifest or
+restart apps, and require a user-controlled Cockpit relaunch followed by API
+Service launch.
 It does not synchronize CTPS, WSL, or RPi; use `cockpit-sync-models` for those
 hosts.
 The temporary `macfake` provider has been removed from Pi5 CLIProxyAPI and its
 Mac test server is stopped. The Mac Cockpit provider snapshot, `CPA` route,
-live manifest, and both Codex catalogs deliberately still contain the three
-`CPA/macfake/manager-test-*` entries so the user can verify refresh and removal
-detection. Do not clean those downstream entries before that test is complete.
+live manifest, and both Codex catalogs still contain the three
+`CPA/macfake/manager-test-*` entries. Removal detection passed; leave them in
+place until the user exercises the Model Manager's explicit removal action.
 After a safe Cockpit relaunch in Windows interactive Session 1, the CTPS live
 sidecar exposed all 125 configured `CPA/*` routes, including 66
 `CPA/opencode/*` routes. WSL observed the same live set through CTPS. After the OpenCode CLI header
