@@ -207,18 +207,28 @@ models`, reapply the three numeric fields to every current entry, and repeat one
 official plus one namespaced real task. Never assume the historical count of 71
 is fixed.
 
-## PPLX model-list synchronization
+## PPLX and OpenCode Zen model-list synchronization
 
-Known-good state verified on 2026-09-02:
+Known-good state verified on 2026-09-03:
 
 - The PPLX proxy advertises 23 models.
-- Pi5 CLIProxyAPI advertises 58 models after adding `pplx/grok-4.6` and
-  `pplx/kimi-k3` and removing `pplx/gpt-5.4`.
-- Every host exposes 58 `CPA/*` models. Total catalogs differ by host: Mac 66,
-  CTPS 67, WSL 67, and RPi 69 because their official model sets differ.
+- Pi5 CLIProxyAPI also serves OpenCode Zen through `openai-compatibility` at
+  `https://opencode.ai/zen/v1` with prefix `opencode` and a browser User-Agent.
+  Client IDs are `opencode/<upstream-id>`; Cockpit IDs are `CPA/opencode/<upstream-id>`.
+- `CPA/*` catalogs follow the current CLIProxyAPI set, including OpenCode Zen and
+  `CPA/gemini-3.8-flash-high`. Host totals differ because official models differ.
 - Mac and RPi use raw context 526316 with Codex's 95-percent factor; CTPS and
   WSL use raw context 500000 with an explicit 100-percent factor. All four
   produce a usable 500000 context and compact at 450000.
+- OpenCode paid models require a workspace payment method. Free models can 429.
+  After those failures, CLIProxyAPI may cool the OpenCode credential and omit
+  some `opencode/*` IDs from `/v1/models`; do not delete configured models from
+  that temporary list.
+- A running Cockpit sidecar keeps the previous mixed-route snapshot in memory.
+  Disk updates are not live until the user relaunches Cockpit. Do not quit
+  Cockpit from a Codex task that uses the sidecar.
+- On CTPS, keep `modelCatalog` as a JSON array. If it becomes `{Count, value}`,
+  unwrap it; do not round-trip the store through PowerShell `ConvertTo-Json`.
 
 Refreshing the model list in Cockpit's provider editor is not sufficient in
 1.3.36. The existing API key's mixed route embeds its own
