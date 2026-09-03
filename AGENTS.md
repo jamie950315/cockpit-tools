@@ -3,10 +3,11 @@
 Read [`docs/COCKPIT_MIXED_ROUTING_RUNBOOK.md`](docs/COCKPIT_MIXED_ROUTING_RUNBOOK.md) before rebuilding, signing, installing, upgrading, or repairing the custom Cockpit Tools app and its five-account OAuth/CLIProxyAPI mixed routing.
 
 For model additions, removals, renames, or provider catalog refreshes across
-Mac, CTPS Windows, WSL, and RPi, use the personal
+Mac, CTPS Windows, WSL, and RPi, use the repository-scoped
 `cockpit-sync-models` skill at
-`~/.codex/skills/cockpit-sync-models/SKILL.md`. It requires live set comparison
-and end-to-end requests rather than relying on historical model counts.
+`.agents/skills/cockpit-sync-models/SKILL.md`. The repository copy is canonical;
+it requires live set comparison and end-to-end requests rather than relying on
+historical model counts.
 
 This fork keeps three public branches with deliberately separate scopes:
 

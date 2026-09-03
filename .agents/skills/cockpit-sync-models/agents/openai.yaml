@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cockpit Model Sync"
+  short_description: "Sync new models across Cockpit and Codex hosts"
+  default_prompt: "Use $cockpit-sync-models to add or refresh models across my PPLX, CLIProxyAPI, Cockpit, and Codex setup."
