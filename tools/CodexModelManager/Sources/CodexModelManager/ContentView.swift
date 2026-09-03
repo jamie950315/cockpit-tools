@@ -62,7 +62,7 @@ struct ContentView: View {
                             .font(.callout.weight(.semibold))
                         Text(store.isCockpitRunning
                             ? "安全起見，請先完成使用中的 Codex 工作並關閉 Cockpit Tools。"
-                            : "同步只會新增模型，不會移除或重新命名現有項目。")
+                            : "同步只會加入即時路由已宣告的模型，不會修改路由或移除項目。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -74,6 +74,24 @@ struct ContentView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(store.isCockpitRunning || store.isDirty || store.isLoading)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
+                .background(Color.orange.opacity(0.09))
+                Divider()
+            }
+            if !store.providerOnlyModels.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("有 \(store.providerOnlyModels.count) 個供應商模型尚未進入即時路由")
+                            .font(.callout.weight(.semibold))
+                        Text("請先在 Cockpit Tools 完成路由更新；此工具不會修改路由設定。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 11)
@@ -190,14 +208,14 @@ struct ContentView: View {
             }
             .buttonStyle(.bordered)
             .disabled(store.isCockpitRunning || store.isDirty || store.isLoading || store.pendingSyncCount == 0)
-            .help(store.isCockpitRunning ? "請先關閉 Cockpit Tools" : "將供應商的新模型加入混合路由與 Codex 清單")
+            .help(store.isCockpitRunning ? "請先關閉 Cockpit Tools" : "將即時路由的新模型加入 Codex 清單")
             Button {
                 store.save()
             } label: {
                 Label("儲存清單", systemImage: "square.and.arrow.down")
             }
             .buttonStyle(.borderedProminent)
-            .disabled(!store.isDirty || store.isLoading)
+            .disabled((!store.isDirty && !store.needsPriorityRepair) || store.isLoading)
             .keyboardShortcut("s", modifiers: .command)
         }
         .padding(.horizontal, 20)

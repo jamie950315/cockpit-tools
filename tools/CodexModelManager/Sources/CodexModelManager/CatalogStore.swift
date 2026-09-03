@@ -13,6 +13,7 @@ final class CatalogStore: ObservableObject {
     @Published var searchText = ""
     @Published var isLoading = false
     @Published var isDirty = false
+    @Published var needsPriorityRepair = false
     @Published var message: String?
     @Published var errorMessage: String?
 
@@ -51,7 +52,7 @@ final class CatalogStore: ObservableObject {
     }
 
     var pendingSyncCount: Int {
-        Set((providerOnlyModels + routeOnlyCatalogAdditions).map { $0.lowercased() }).count
+        Set(routeOnlyCatalogAdditions.map { $0.lowercased() }).count
     }
 
     private var catalogDifference: ModelCatalogDifference {
@@ -72,10 +73,13 @@ final class CatalogStore: ObservableObject {
             routedModelIDs = result.routedModelIDs
             providerModelIDs = result.providerModelIDs
             routeModelIDs = result.routeModelIDs
+            needsPriorityRepair = !result.prioritiesMatchOrder
             refreshCockpitState()
             isDirty = false
             errorMessage = nil
-            message = "已載入 \(models.count) 個模型。"
+            message = needsPriorityRepair
+                ? "目前位置尚未完整套用到 Codex 排序。請儲存清單以修正。"
+                : "已載入 \(models.count) 個模型。"
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -85,9 +89,13 @@ final class CatalogStore: ObservableObject {
         refreshCockpitState()
         guard !isDirty, let loaded, repository.sourcesChanged(since: loaded) else { return }
         load()
-        message = pendingSyncCount > 0
-            ? "偵測到 \(pendingSyncCount) 個模型等待同步。"
-            : "來源已自動重新載入。"
+        if pendingSyncCount > 0 {
+            message = "偵測到 \(pendingSyncCount) 個模型等待同步。"
+        } else if !providerOnlyModels.isEmpty {
+            message = "偵測到 \(providerOnlyModels.count) 個供應商模型尚未進入即時路由。"
+        } else {
+            message = "來源已自動重新載入。"
+        }
     }
 
     func synchronizeModels() {
@@ -99,20 +107,21 @@ final class CatalogStore: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            let result = try repository.synchronizeProviderAdditions(loaded)
+            let result = try repository.synchronizeManifestAdditions(loaded)
             self.loaded = try repository.load()
             if let refreshed = self.loaded {
                 models = refreshed.models
                 routedModelIDs = refreshed.routedModelIDs
                 providerModelIDs = refreshed.providerModelIDs
                 routeModelIDs = refreshed.routeModelIDs
+                needsPriorityRepair = !refreshed.prioritiesMatchOrder
             }
             isDirty = false
             errorMessage = nil
-            if result.addedToRoute.isEmpty && result.addedToCatalog.isEmpty {
+            if result.addedToCatalog.isEmpty {
                 message = "供應商、混合路由與 Codex 清單已同步。"
             } else {
-                message = "已同步：路由新增 \(result.addedToRoute.count) 個，Codex 清單新增 \(result.addedToCatalog.count) 個。請重新開啟 Cockpit，再從 API Service 啟動 Codex。"
+                message = "已同步：Codex 清單新增 \(result.addedToCatalog.count) 個。重新啟動 Codex 後載入新清單。"
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -160,6 +169,7 @@ final class CatalogStore: ObservableObject {
         do {
             let backup = try repository.save(loaded, models: models)
             self.loaded = try repository.load()
+            needsPriorityRepair = !(self.loaded?.prioritiesMatchOrder ?? false)
             isDirty = false
             errorMessage = nil
             message = "已儲存，備份為 \(backup.lastPathComponent)。重新啟動 Codex 後載入新清單。"

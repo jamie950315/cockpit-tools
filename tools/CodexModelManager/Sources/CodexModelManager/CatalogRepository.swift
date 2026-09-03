@@ -50,7 +50,11 @@ struct CatalogRepository: Sendable {
             configFingerprint: configData,
             managedFingerprint: managedData,
             providerFingerprint: providerData,
-            routeFingerprint: routeData
+            routeFingerprint: routeData,
+            prioritiesMatchOrder: CatalogEditor.prioritiesMatchOrder(
+                models: models,
+                managedRoot: managedRoot
+            )
         )
     }
 
@@ -94,7 +98,7 @@ struct CatalogRepository: Sendable {
         return backupDirectory
     }
 
-    func synchronizeProviderAdditions(_ loaded: LoadedCatalog) throws -> ModelSyncResult {
+    func synchronizeManifestAdditions(_ loaded: LoadedCatalog) throws -> ModelSyncResult {
         guard try readData(paths.config) == loaded.configFingerprint,
               try readData(paths.managedCatalog) == loaded.managedFingerprint,
               try readData(paths.providerCatalog) == loaded.providerFingerprint,
@@ -102,55 +106,44 @@ struct CatalogRepository: Sendable {
             throw CatalogError.filesChangedExternally
         }
 
-        let providerRawIDs = Self.uniqued(
-            loaded.providerModelIDs.compactMap(Self.removeCPAPrefix)
-        )
-        let routeRawSet = Set(loaded.routeModelIDs.compactMap(Self.removeCPAPrefix).map { $0.lowercased() })
-        let addedRawIDs = providerRawIDs.filter { !routeRawSet.contains($0.lowercased()) }
-        let desiredRouteIDs = loaded.routeModelIDs + addedRawIDs.map { "CPA/\($0)" }
-
         let currentCatalogSet = Set(loaded.models.map { $0.modelID.lowercased() })
-        let catalogAdditions = desiredRouteIDs.filter { !currentCatalogSet.contains($0.lowercased()) }
+        let catalogAdditions = Self.uniqued(loaded.routedModelIDs).filter {
+            !currentCatalogSet.contains($0.lowercased())
+                && !Self.intentionallyHiddenModelIDs.contains($0.lowercased())
+        }
         let desiredModels = loaded.models + catalogAdditions.map {
             CatalogModel.newModel(id: $0, displayName: Self.defaultDisplayName(for: $0))
         }
 
-        guard !addedRawIDs.isEmpty || !catalogAdditions.isEmpty else {
-            return ModelSyncResult(addedToRoute: [], addedToCatalog: [], backupDirectory: nil)
+        guard !catalogAdditions.isEmpty else {
+            return ModelSyncResult(addedToCatalog: [], backupDirectory: nil)
         }
 
-        let updatedRouteRoot = try updatingRoute(root: loaded.routeRoot, appending: addedRawIDs)
         try CatalogEditor.validate(
             models: desiredModels,
-            routedIDs: Set(desiredRouteIDs.map { $0.lowercased() })
+            routedIDs: Set(loaded.routedModelIDs.map { $0.lowercased() })
         )
         var configRoot = loaded.configRoot
         configRoot["models"] = .array(desiredModels.map { .object($0.fields) })
         let managedRoot = try rebuildManagedCatalog(root: loaded.managedRoot, models: desiredModels)
-        let routeData = try encoded(.object(updatedRouteRoot))
         let configData = try encoded(.object(configRoot))
         let managedData = try encoded(.object(managedRoot))
 
         let backupDirectory = try createBackupDirectory()
-        try backup(paths.routeStore, to: backupDirectory)
         try backup(paths.config, to: backupDirectory)
         try backup(paths.managedCatalog, to: backupDirectory)
 
         do {
-            try routeData.write(to: paths.routeStore, options: .atomic)
-            try setPrivatePermissions(paths.routeStore)
             try managedData.write(to: paths.managedCatalog, options: .atomic)
             try setPrivatePermissions(paths.managedCatalog)
             try configData.write(to: paths.config, options: .atomic)
             try setPrivatePermissions(paths.config)
         } catch {
-            try? restore(paths.routeStore, from: backupDirectory)
             try? restore(paths.managedCatalog, from: backupDirectory)
             try? restore(paths.config, from: backupDirectory)
             throw error
         }
         return ModelSyncResult(
-            addedToRoute: addedRawIDs.map { "CPA/\($0)" },
             addedToCatalog: catalogAdditions,
             backupDirectory: backupDirectory
         )
@@ -190,8 +183,8 @@ struct CatalogRepository: Sendable {
             object["slug"] = .string(id)
             object["display_name"] = .string(name)
             object["description"] = .string(name)
+            object["priority"] = .integer(Int64(index + 1))
             if id.contains("/") {
-                object["priority"] = .integer(Int64(1_000 + index))
                 object["visibility"] = .string("list")
                 object["supported_in_api"] = .bool(true)
             }
@@ -244,30 +237,6 @@ struct CatalogRepository: Sendable {
         return location.upstreamModels.map { "CPA/\($0)" }
     }
 
-    private func updatingRoute(
-        root: [String: JSONValue],
-        appending additions: [String]
-    ) throws -> [String: JSONValue] {
-        let location = try mixedRouteLocation(in: root)
-        var result = root
-        guard var apiKeys = result["apiKeys"]?.arrayValue,
-              var apiKey = apiKeys[location.apiKeyIndex].objectValue,
-              var routing = apiKey["modelRouting"]?.objectValue,
-              var routes = routing["routes"]?.arrayValue,
-              var route = routes[location.routeIndex].objectValue,
-              var gateway = route["providerGateway"]?.objectValue else {
-            throw CatalogError.missingMixedRoute
-        }
-        gateway["upstreamModels"] = .array((location.upstreamModels + additions).map(JSONValue.string))
-        route["providerGateway"] = .object(gateway)
-        routes[location.routeIndex] = .object(route)
-        routing["routes"] = .array(routes)
-        apiKey["modelRouting"] = .object(routing)
-        apiKeys[location.apiKeyIndex] = .object(apiKey)
-        result["apiKeys"] = .array(apiKeys)
-        return result
-    }
-
     private func mixedRouteLocation(
         in root: [String: JSONValue]
     ) throws -> (apiKeyIndex: Int, routeIndex: Int, upstreamModels: [String]) {
@@ -295,11 +264,6 @@ struct CatalogRepository: Sendable {
         throw CatalogError.missingMixedRoute
     }
 
-    private static func removeCPAPrefix(_ id: String) -> String? {
-        guard id.hasPrefix("CPA/"), id.count > 4 else { return nil }
-        return String(id.dropFirst(4))
-    }
-
     private static func defaultDisplayName(for id: String) -> String {
         guard let slash = id.firstIndex(of: "/") else { return id }
         return "\(id[..<slash]) · \(id[id.index(after: slash)...])"
@@ -309,6 +273,10 @@ struct CatalogRepository: Sendable {
         var seen = Set<String>()
         return values.filter { seen.insert($0.lowercased()).inserted }
     }
+
+    private static let intentionallyHiddenModelIDs: Set<String> = [
+        "gpt-image-2",
+    ]
 
     private func readData(_ url: URL) throws -> Data {
         guard let data = try? Data(contentsOf: url) else {

@@ -149,10 +149,10 @@ compatibility when changing its prompt handling.
 
 The native `tools/CodexModelManager` app can now detect provider, persisted
 mixed-route, live-manifest, and Mac Codex catalog differences while it is open.
-Its **同步模型** action is additions-only and extends the route-bearing API
-key's uppercase `CPA` upstream snapshot plus both Mac catalogs. It blocks route
-writes while Cockpit is running, never edits the live manifest or restarts apps,
-and requires a user-controlled Cockpit relaunch followed by API Service launch.
+Its **同步模型** action is additions-only and adds only models already advertised
+by the live manifest to both Mac catalogs. Provider and route stores are read
+only. Catalog order is encoded with sequential `priority` values because Codex
+Desktop does not render the raw JSON array order directly.
 Provider removals are shown as a non-destructive difference and are never
 deleted automatically.
 It does not synchronize CTPS, WSL, or RPi; use `cockpit-sync-models` for those

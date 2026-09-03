@@ -78,10 +78,10 @@ struct LoadedCatalog: Sendable {
     var managedFingerprint: Data
     var providerFingerprint: Data
     var routeFingerprint: Data
+    var prioritiesMatchOrder: Bool
 }
 
 struct ModelSyncResult: Sendable {
-    let addedToRoute: [String]
     let addedToCatalog: [String]
     let backupDirectory: URL?
 }
@@ -123,6 +123,19 @@ enum CatalogError: LocalizedError, Equatable {
 }
 
 enum CatalogEditor {
+    static func prioritiesMatchOrder(
+        models: [CatalogModel],
+        managedRoot: [String: JSONValue]
+    ) -> Bool {
+        guard let managedValues = managedRoot["models"]?.arrayValue,
+              managedValues.count == models.count else { return false }
+        return zip(models.indices, managedValues).allSatisfy { index, value in
+            guard let object = value.objectValue else { return false }
+            return object["slug"]?.stringValue == models[index].modelID
+                && object["priority"]?.integerValue == Int64(index + 1)
+        }
+    }
+
     static func differences(
         providerIDs: [String],
         routeIDs: [String],
