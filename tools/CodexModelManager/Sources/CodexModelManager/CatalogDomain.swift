@@ -51,6 +51,7 @@ struct CatalogPaths: Sendable {
     let managedCatalog: URL
     let manifest: URL
     let providerCatalog: URL
+    let routeStore: URL
     let backups: URL
 
     static func live(homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> CatalogPaths {
@@ -59,6 +60,7 @@ struct CatalogPaths: Sendable {
             managedCatalog: homeDirectory.appending(path: ".codex/cockpit-model-catalog.json"),
             manifest: homeDirectory.appending(path: ".antigravity_cockpit/codex_local_access_sidecar/manifest.json"),
             providerCatalog: homeDirectory.appending(path: ".antigravity_cockpit/codex_model_providers.json"),
+            routeStore: homeDirectory.appending(path: ".antigravity_cockpit/codex_local_access.json"),
             backups: homeDirectory.appending(path: ".codex/model-manager-backups", directoryHint: .isDirectory)
         )
     }
@@ -70,8 +72,18 @@ struct LoadedCatalog: Sendable {
     var models: [CatalogModel]
     var routedModelIDs: [String]
     var providerModelIDs: [String]
+    var routeRoot: [String: JSONValue]
+    var routeModelIDs: [String]
     var configFingerprint: Data
     var managedFingerprint: Data
+    var providerFingerprint: Data
+    var routeFingerprint: Data
+}
+
+struct ModelSyncResult: Sendable {
+    let addedToRoute: [String]
+    let addedToCatalog: [String]
+    let backupDirectory: URL?
 }
 
 enum CatalogError: LocalizedError, Equatable {
@@ -83,6 +95,9 @@ enum CatalogError: LocalizedError, Equatable {
     case unroutedModel(String)
     case filesChangedExternally
     case noTemplate
+    case missingMixedRoute
+    case unsafeMixedRoute
+    case invalidProviderCatalog
 
     var errorDescription: String? {
         switch self {
@@ -94,6 +109,9 @@ enum CatalogError: LocalizedError, Equatable {
         case let .unroutedModel(id): "模型 \(id) 尚未由 Cockpit 的即時路由宣告。"
         case .filesChangedExternally: "Cockpit 已在背景更新模型檔案。請重新載入後再編輯，以免覆寫較新的資料。"
         case .noTemplate: "受管 catalog 中沒有可安全沿用的模型範本。"
+        case .missingMixedRoute: "找不到使用 modelRouting 的 API key，或找不到大寫 CPA 路由。"
+        case .unsafeMixedRoute: "混合路由不是 OAuth 預設加 strict 失敗策略，已停止同步以保護現有路由。"
+        case .invalidProviderCatalog: "找不到有效的 CLIProxyAPI 模型清單。請先在 Cockpit Tools 刷新並儲存供應商清單。"
         }
     }
 }

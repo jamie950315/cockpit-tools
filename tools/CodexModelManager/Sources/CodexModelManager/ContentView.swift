@@ -1,8 +1,10 @@
+import Combine
 import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var store: CatalogStore
     @State private var additionsOpen = false
+    private let refreshTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,6 +19,7 @@ struct ContentView: View {
         .task {
             if store.models.isEmpty { store.load() }
         }
+        .onReceive(refreshTimer) { _ in store.refreshSourcesIfNeeded() }
         .sheet(isPresented: $additionsOpen) {
             AddModelsSheet(isPresented: $additionsOpen)
                 .environmentObject(store)
@@ -33,9 +36,9 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            MetricPill(value: store.models.count, label: "清單")
-            MetricPill(value: store.routedModelIDs.count, label: "路由")
-            MetricPill(value: store.availableAdditions.count, label: "新增")
+            MetricPill(value: store.providerModelIDs.count, label: "供應商")
+            MetricPill(value: store.routeModelIDs.count, label: "混合路由")
+            MetricPill(value: store.models.count, label: "Codex")
             Button {
                 store.load()
             } label: {
@@ -50,6 +53,33 @@ struct ContentView: View {
 
     private var catalogList: some View {
         VStack(spacing: 0) {
+            if store.pendingSyncCount > 0 {
+                HStack(spacing: 10) {
+                    Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                        .foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("有 \(store.pendingSyncCount) 個新模型等待同步")
+                            .font(.callout.weight(.semibold))
+                        Text(store.isCockpitRunning
+                            ? "安全起見，請先完成使用中的 Codex 工作並關閉 Cockpit Tools。"
+                            : "同步只會新增模型，不會移除或重新命名現有項目。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button {
+                        store.synchronizeModels()
+                    } label: {
+                        Label("同步模型", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.isCockpitRunning || store.isDirty || store.isLoading)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
+                .background(Color.orange.opacity(0.09))
+                Divider()
+            }
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -130,6 +160,14 @@ struct ContentView: View {
                 Label("加入模型", systemImage: "plus")
             }
             .buttonStyle(.bordered)
+            Button {
+                store.synchronizeModels()
+            } label: {
+                Label("同步模型", systemImage: "arrow.triangle.2.circlepath")
+            }
+            .buttonStyle(.bordered)
+            .disabled(store.isCockpitRunning || store.isDirty || store.isLoading || store.pendingSyncCount == 0)
+            .help(store.isCockpitRunning ? "請先關閉 Cockpit Tools" : "將供應商的新模型加入混合路由與 Codex 清單")
             Button {
                 store.save()
             } label: {

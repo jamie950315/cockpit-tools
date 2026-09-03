@@ -146,6 +146,15 @@ CLIProxyAPI `modelCatalog` as a JSON array; a PowerShell `ConvertTo-Json`
 round-trip can wrap it as `{Count, value}` and must be unwrapped. PPLX proxy
 commit `f215bde` accepts Codex/OpenAI content-part arrays; keep this
 compatibility when changing its prompt handling.
+
+The native `tools/CodexModelManager` app can now detect provider, persisted
+mixed-route, live-manifest, and Mac Codex catalog differences while it is open.
+Its **同步模型** action is additions-only and extends the route-bearing API
+key's uppercase `CPA` upstream snapshot plus both Mac catalogs. It blocks route
+writes while Cockpit is running, never edits the live manifest or restarts apps,
+and requires a user-controlled Cockpit relaunch followed by API Service launch.
+It does not synchronize CTPS, WSL, or RPi; use `cockpit-sync-models` for those
+hosts.
 After a safe Cockpit relaunch in Windows interactive Session 1, the CTPS live
 sidecar exposed all 125 configured `CPA/*` routes, including 66
 `CPA/opencode/*` routes. WSL observed the same live set through CTPS. After the OpenCode CLI header

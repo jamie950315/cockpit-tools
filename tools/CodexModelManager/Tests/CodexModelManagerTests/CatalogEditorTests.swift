@@ -49,6 +49,7 @@ private func model(_ id: String, name: String? = nil) -> CatalogModel {
         managedCatalog: root.appending(path: "catalog.json"),
         manifest: root.appending(path: "manifest.json"),
         providerCatalog: root.appending(path: "providers.json"),
+        routeStore: root.appending(path: "routes.json"),
         backups: root.appending(path: "backups", directoryHint: .isDirectory)
     )
     try Data(#"{"version":4,"future":{"keep":true},"models":[{"model_id":"CPA/a","display_name":"A","context_window":526316,"auto_compact_token_limit":450000},{"model_id":"CPA/b","display_name":"B","context_window":526316,"auto_compact_token_limit":450000}]}"#.utf8)
@@ -58,6 +59,8 @@ private func model(_ id: String, name: String? = nil) -> CatalogModel {
     try Data(#"{"modelIds":["CPA/a","CPA/b","CPA/c"]}"#.utf8).write(to: paths.manifest)
     try Data(#"[{"name":"CLIProxyAPI","modelCatalog":["a","b","c"],"apiKeys":["never-decoded"]}]"#.utf8)
         .write(to: paths.providerCatalog)
+    try Data(#"{"future":"keep","apiKeys":[{"label":"not-first-assumption","secret":"preserve","modelRouting":{"defaultRoute":"oauth","failurePolicy":"strict","routes":[{"namespace":"CPA","providerGateway":{"apiKey":"preserve","upstreamModels":["a","b","c"]}}]}}]}"#.utf8)
+        .write(to: paths.routeStore)
 
     let repository = CatalogRepository(paths: paths)
     var loaded = try repository.load()
@@ -91,6 +94,7 @@ private func model(_ id: String, name: String? = nil) -> CatalogModel {
         managedCatalog: root.appending(path: "catalog.json"),
         manifest: root.appending(path: "manifest.json"),
         providerCatalog: root.appending(path: "providers.json"),
+        routeStore: root.appending(path: "routes.json"),
         backups: root.appending(path: "backups", directoryHint: .isDirectory)
     )
     try Data(#"{"version":4,"models":[{"model_id":"CPA/a","display_name":"A"}]}"#.utf8)
@@ -99,6 +103,8 @@ private func model(_ id: String, name: String? = nil) -> CatalogModel {
         .write(to: paths.managedCatalog)
     try Data(#"{"modelIds":["CPA/a"]}"#.utf8).write(to: paths.manifest)
     try Data(#"[{"name":"CLIProxyAPI","modelCatalog":["a"]}]"#.utf8).write(to: paths.providerCatalog)
+    try Data(#"{"apiKeys":[{"modelRouting":{"defaultRoute":"oauth","failurePolicy":"strict","routes":[{"namespace":"CPA","providerGateway":{"upstreamModels":["a"]}}]}}]}"#.utf8)
+        .write(to: paths.routeStore)
     let repository = CatalogRepository(paths: paths)
     let loaded = try repository.load()
     try Data(#"{"version":4,"changed":true,"models":[{"model_id":"CPA/a","display_name":"A"}]}"#.utf8)
@@ -106,5 +112,77 @@ private func model(_ id: String, name: String? = nil) -> CatalogModel {
 
     #expect(throws: CatalogError.filesChangedExternally) {
         _ = try repository.save(loaded, models: loaded.models)
+    }
+}
+
+@Test func synchronizesProviderOnlyModelsWithoutRemovingOrExposingUnknownFields() throws {
+    let root = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let paths = CatalogPaths(
+        config: root.appending(path: "config.json"),
+        managedCatalog: root.appending(path: "catalog.json"),
+        manifest: root.appending(path: "manifest.json"),
+        providerCatalog: root.appending(path: "providers.json"),
+        routeStore: root.appending(path: "routes.json"),
+        backups: root.appending(path: "backups", directoryHint: .isDirectory)
+    )
+    try Data(#"{"models":[{"model_id":"CPA/old","display_name":"Old","context_window":526316,"auto_compact_token_limit":450000}]}"#.utf8).write(to: paths.config)
+    try Data(#"{"models":[{"slug":"CPA/old","display_name":"Old","visibility":"list","future":"keep"}]}"#.utf8).write(to: paths.managedCatalog)
+    try Data(#"{"modelIds":["CPA/old"]}"#.utf8).write(to: paths.manifest)
+    try Data(#"[{"name":"Other","modelCatalog":["wrong"]},{"name":"CLIProxyAPI","modelCatalog":["old","new","new","newer"],"apiKeys":["provider-secret"]}]"#.utf8).write(to: paths.providerCatalog)
+    try Data(#"{"topFuture":"keep","apiKeys":[{"label":"plain","key":"first-secret","modelRouting":null},{"label":"routed","key":"second-secret","unknown":"keep","modelRouting":{"defaultRoute":"oauth","failurePolicy":"strict","routes":[{"id":"route","namespace":"CPA","providerGateway":{"apiKey":"gateway-secret","wireApi":"responses","upstreamModels":["old"]}}]}}]}"#.utf8).write(to: paths.routeStore)
+
+    let repository = CatalogRepository(paths: paths)
+    let loaded = try repository.load()
+    #expect(loaded.routeModelIDs == ["CPA/old"])
+    let result = try repository.synchronizeProviderAdditions(loaded)
+    #expect(result.addedToRoute == ["CPA/new", "CPA/newer"])
+    #expect(result.addedToCatalog == ["CPA/new", "CPA/newer"])
+
+    let reloaded = try repository.load()
+    #expect(reloaded.routeModelIDs == ["CPA/old", "CPA/new", "CPA/newer"])
+    #expect(reloaded.models.map(\.modelID) == ["CPA/old", "CPA/new", "CPA/newer"])
+    #expect(reloaded.routeRoot["topFuture"] == .string("keep"))
+    let routedAccount = reloaded.routeRoot["apiKeys"]?.arrayValue?[1].objectValue
+    #expect(routedAccount?["key"] == .string("second-secret"))
+    #expect(routedAccount?["unknown"] == .string("keep"))
+    let routing = routedAccount?["modelRouting"]?.objectValue
+    #expect(routing?["defaultRoute"] == .string("oauth"))
+    #expect(routing?["failurePolicy"] == .string("strict"))
+    let route = routing?["routes"]?.arrayValue?.first?.objectValue
+    #expect(route?["namespace"] == .string("CPA"))
+    #expect(route?["providerGateway"]?.objectValue?["apiKey"] == .string("gateway-secret"))
+}
+
+@Test func refusesUnsafeOrExternallyChangedRouteSynchronization() throws {
+    let root = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let paths = CatalogPaths(
+        config: root.appending(path: "config.json"),
+        managedCatalog: root.appending(path: "catalog.json"),
+        manifest: root.appending(path: "manifest.json"),
+        providerCatalog: root.appending(path: "providers.json"),
+        routeStore: root.appending(path: "routes.json"),
+        backups: root.appending(path: "backups", directoryHint: .isDirectory)
+    )
+    try Data(#"{"models":[{"model_id":"CPA/a","display_name":"A"}]}"#.utf8).write(to: paths.config)
+    try Data(#"{"models":[{"slug":"CPA/a","display_name":"A","visibility":"list"}]}"#.utf8).write(to: paths.managedCatalog)
+    try Data(#"{"modelIds":["CPA/a"]}"#.utf8).write(to: paths.manifest)
+    try Data(#"[{"name":"CLIProxyAPI","modelCatalog":["a","b"]}]"#.utf8).write(to: paths.providerCatalog)
+    try Data(#"{"apiKeys":[{"modelRouting":{"defaultRoute":"oauth","failurePolicy":"strict","routes":[{"namespace":"CPA","providerGateway":{"upstreamModels":["a"]}}]}}]}"#.utf8).write(to: paths.routeStore)
+    let repository = CatalogRepository(paths: paths)
+    let loaded = try repository.load()
+    try Data(#"{"changed":true,"apiKeys":[{"modelRouting":{"defaultRoute":"oauth","failurePolicy":"strict","routes":[{"namespace":"CPA","providerGateway":{"upstreamModels":["a"]}}]}}]}"#.utf8).write(to: paths.routeStore)
+    #expect(throws: CatalogError.filesChangedExternally) {
+        _ = try repository.synchronizeProviderAdditions(loaded)
+    }
+
+    try Data(#"{"apiKeys":[{"modelRouting":{"defaultRoute":"provider","failurePolicy":"fallback","routes":[{"namespace":"CPA","providerGateway":{"upstreamModels":["a"]}}]}}]}"#.utf8).write(to: paths.routeStore)
+    #expect(throws: CatalogError.unsafeMixedRoute) {
+        _ = try repository.load()
     }
 }

@@ -8,6 +8,8 @@ final class CatalogStore: ObservableObject {
     @Published var models: [CatalogModel] = []
     @Published var routedModelIDs: [String] = []
     @Published var providerModelIDs: [String] = []
+    @Published var routeModelIDs: [String] = []
+    @Published var isCockpitRunning = false
     @Published var searchText = ""
     @Published var isLoading = false
     @Published var isDirty = false
@@ -37,8 +39,17 @@ final class CatalogStore: ObservableObject {
     }
 
     var providerOnlyModels: [String] {
-        let routed = Set(routedModelIDs.map { $0.lowercased() })
+        let routed = Set(routeModelIDs.map { $0.lowercased() })
         return providerModelIDs.filter { !routed.contains($0.lowercased()) }
+    }
+
+    var routeOnlyCatalogAdditions: [String] {
+        let current = Set(models.map { $0.modelID.lowercased() })
+        return routeModelIDs.filter { !current.contains($0.lowercased()) }
+    }
+
+    var pendingSyncCount: Int {
+        Set((providerOnlyModels + routeOnlyCatalogAdditions).map { $0.lowercased() }).count
     }
 
     func load() {
@@ -50,9 +61,49 @@ final class CatalogStore: ObservableObject {
             models = result.models
             routedModelIDs = result.routedModelIDs
             providerModelIDs = result.providerModelIDs
+            routeModelIDs = result.routeModelIDs
+            refreshCockpitState()
             isDirty = false
             errorMessage = nil
             message = "已載入 \(models.count) 個模型。"
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func refreshSourcesIfNeeded() {
+        refreshCockpitState()
+        guard !isDirty, let loaded, repository.sourcesChanged(since: loaded) else { return }
+        load()
+        message = pendingSyncCount > 0
+            ? "偵測到 \(pendingSyncCount) 個模型等待同步。"
+            : "來源已自動重新載入。"
+    }
+
+    func synchronizeModels() {
+        refreshCockpitState()
+        guard !isCockpitRunning, let loaded else {
+            errorMessage = "Cockpit Tools 正在執行。請先完成使用中的 Codex 工作並關閉 Cockpit，再進行同步。"
+            return
+        }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let result = try repository.synchronizeProviderAdditions(loaded)
+            self.loaded = try repository.load()
+            if let refreshed = self.loaded {
+                models = refreshed.models
+                routedModelIDs = refreshed.routedModelIDs
+                providerModelIDs = refreshed.providerModelIDs
+                routeModelIDs = refreshed.routeModelIDs
+            }
+            isDirty = false
+            errorMessage = nil
+            if result.addedToRoute.isEmpty && result.addedToCatalog.isEmpty {
+                message = "供應商、混合路由與 Codex 清單已同步。"
+            } else {
+                message = "已同步：路由新增 \(result.addedToRoute.count) 個，Codex 清單新增 \(result.addedToCatalog.count) 個。請重新開啟 Cockpit，再從 API Service 啟動 Codex。"
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -121,6 +172,12 @@ final class CatalogStore: ObservableObject {
         isDirty = true
         message = nil
         errorMessage = nil
+    }
+
+    private func refreshCockpitState() {
+        isCockpitRunning = !NSRunningApplication.runningApplications(
+            withBundleIdentifier: "com.jlcodes.cockpit-tools"
+        ).isEmpty
     }
 
     private static func defaultDisplayName(for id: String) -> String {
