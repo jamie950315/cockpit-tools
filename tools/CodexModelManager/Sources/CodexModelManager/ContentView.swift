@@ -80,6 +80,29 @@ struct ContentView: View {
                 .background(Color.orange.opacity(0.09))
                 Divider()
             }
+            if !store.removedProviderModels.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: "minus.circle.fill")
+                        .foregroundStyle(.red)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("偵測到 \(store.removedProviderModels.count) 個模型已從供應商移除")
+                            .font(.callout.weight(.semibold))
+                        Text(store.removedProviderModels.joined(separator: "、"))
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                    }
+                    Spacer()
+                    Text("僅偵測，不自動刪除")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
+                .background(Color.red.opacity(0.08))
+                Divider()
+            }
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)

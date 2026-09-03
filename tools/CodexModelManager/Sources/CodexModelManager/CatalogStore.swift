@@ -39,17 +39,27 @@ final class CatalogStore: ObservableObject {
     }
 
     var providerOnlyModels: [String] {
-        let routed = Set(routeModelIDs.map { $0.lowercased() })
-        return providerModelIDs.filter { !routed.contains($0.lowercased()) }
+        catalogDifference.providerOnly
+    }
+
+    var removedProviderModels: [String] {
+        catalogDifference.routeOnly
     }
 
     var routeOnlyCatalogAdditions: [String] {
-        let current = Set(models.map { $0.modelID.lowercased() })
-        return routeModelIDs.filter { !current.contains($0.lowercased()) }
+        catalogDifference.routeMissingFromCatalog
     }
 
     var pendingSyncCount: Int {
         Set((providerOnlyModels + routeOnlyCatalogAdditions).map { $0.lowercased() }).count
+    }
+
+    private var catalogDifference: ModelCatalogDifference {
+        CatalogEditor.differences(
+            providerIDs: providerModelIDs,
+            routeIDs: routeModelIDs,
+            catalogIDs: models.map(\.modelID)
+        )
     }
 
     func load() {

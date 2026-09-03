@@ -17,7 +17,8 @@ Synchronization is additions-only. Never modify the live manifest, remove
 models automatically, run a persistent watcher outside the app, or write the
 route store while Cockpit Tools is running. Back up the credential-bearing
 route store with mode 0600 before changing it and require a user-controlled
-Cockpit relaunch afterward.
+Cockpit relaunch afterward. Provider removals must be detected and shown as a
+non-destructive difference.
 
 Run `swift test --package-path tools/CodexModelManager` and build the `.app`
 with `tools/CodexModelManager/scripts/build-app.sh` before delivery. Validate

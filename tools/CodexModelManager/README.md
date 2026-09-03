@@ -14,6 +14,8 @@ modify the Cockpit Tools, Codex, or ChatGPT application binaries.
 - Synchronize newly refreshed CLIProxyAPI models into the existing `CPA` mixed
   route and both Codex catalogs with one button. Synchronization is additions
   only; it never removes existing models.
+- Clearly identify models removed from the refreshed provider catalog without
+  automatically deleting them from the route or Codex.
 - Block route synchronization while Cockpit Tools is running so its in-memory
   state cannot overwrite the saved route.
 - Preserve unknown JSON fields and the existing model context configuration.

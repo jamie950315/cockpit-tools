@@ -86,6 +86,12 @@ struct ModelSyncResult: Sendable {
     let backupDirectory: URL?
 }
 
+struct ModelCatalogDifference: Equatable, Sendable {
+    let providerOnly: [String]
+    let routeOnly: [String]
+    let routeMissingFromCatalog: [String]
+}
+
 enum CatalogError: LocalizedError, Equatable {
     case unreadableFile(String)
     case invalidRoot(String)
@@ -117,6 +123,21 @@ enum CatalogError: LocalizedError, Equatable {
 }
 
 enum CatalogEditor {
+    static func differences(
+        providerIDs: [String],
+        routeIDs: [String],
+        catalogIDs: [String]
+    ) -> ModelCatalogDifference {
+        let provider = Set(providerIDs.map { $0.lowercased() })
+        let route = Set(routeIDs.map { $0.lowercased() })
+        let catalog = Set(catalogIDs.map { $0.lowercased() })
+        return ModelCatalogDifference(
+            providerOnly: providerIDs.filter { !route.contains($0.lowercased()) },
+            routeOnly: routeIDs.filter { !provider.contains($0.lowercased()) },
+            routeMissingFromCatalog: routeIDs.filter { !catalog.contains($0.lowercased()) }
+        )
+    }
+
     static func move(models: [CatalogModel], from source: Int, toPosition position: Int) -> [CatalogModel] {
         guard models.indices.contains(source), !models.isEmpty else { return models }
         let destination = min(max(position, 1), models.count) - 1

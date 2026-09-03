@@ -23,6 +23,17 @@ private func model(_ id: String, name: String? = nil) -> CatalogModel {
     #expect(CatalogEditor.move(models: models, from: 0, toPosition: 99).map(\.modelID) == ["b", "c", "a"])
 }
 
+@Test func detectsProviderAdditionsAndRemovalsWithoutChangingEitherSet() {
+    let difference = CatalogEditor.differences(
+        providerIDs: ["CPA/keep", "CPA/new"],
+        routeIDs: ["CPA/keep", "CPA/removed", "CPA/catalog-missing"],
+        catalogIDs: ["CPA/keep", "CPA/removed"]
+    )
+    #expect(difference.providerOnly == ["CPA/new"])
+    #expect(difference.routeOnly == ["CPA/removed", "CPA/catalog-missing"])
+    #expect(difference.routeMissingFromCatalog == ["CPA/catalog-missing"])
+}
+
 @Test func rejectsDuplicateAndUnroutedModels() {
     #expect(throws: CatalogError.duplicateModel("CPA/a")) {
         try CatalogEditor.validate(

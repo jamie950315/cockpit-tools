@@ -276,6 +276,8 @@ while Cockpit is running, makes restricted backups, preserves unknown and
 credential fields without displaying them, and requires the user to relaunch
 Cockpit and launch Codex through API Service afterward. This helper covers the
 local Mac layers only; use the full cross-host workflow for CTPS, WSL, and RPi.
+When a refreshed provider catalog removes models, the helper reports the exact
+stale route entries but does not delete them automatically.
 
 Codex sends Chat Completions message content as an array of typed text parts.
 PPLX proxy commit `f215bde` normalizes `input_text` and `text` parts before

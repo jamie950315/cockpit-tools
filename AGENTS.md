@@ -153,6 +153,8 @@ Its **同步模型** action is additions-only and extends the route-bearing API
 key's uppercase `CPA` upstream snapshot plus both Mac catalogs. It blocks route
 writes while Cockpit is running, never edits the live manifest or restarts apps,
 and requires a user-controlled Cockpit relaunch followed by API Service launch.
+Provider removals are shown as a non-destructive difference and are never
+deleted automatically.
 It does not synchronize CTPS, WSL, or RPi; use `cockpit-sync-models` for those
 hosts.
 After a safe Cockpit relaunch in Windows interactive Session 1, the CTPS live
