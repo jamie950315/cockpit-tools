@@ -648,6 +648,8 @@ remain fixed at the top in their built-in order. The utility lets every other
 model move below that boundary, writes Cockpit's `1000 + array index` fallback
 priority, updates names, and can add provider models through the existing
 uppercase `CPA` route.
+Selecting a model ends any prior search-field editing focus so the Up/Down keys
+move it immediately. Closing the last Model Manager window terminates the app.
 
 The utility must remain narrower than the model synchronization workflow:
 

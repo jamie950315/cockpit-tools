@@ -25,7 +25,10 @@ Cockpit built-ins. Keep them fixed at the top in priority order and reject any
 save that moves or reorders that block. Movable models use Cockpit's fallback
 `1000 + array index` priority and may never cross above the built-in block. The
 list supports a visible row selection and repeated Up/Down keyboard movement;
-text-field arrow keys must remain available while editing.
+selecting a model must end any previous search-field editing focus, while
+text-field arrow keys must remain available during active editing. Closing the
+last app window must terminate the process rather than leave a menu-bar-only
+application running.
 
 Run `swift test --package-path tools/CodexModelManager` and build the `.app`
 with `tools/CodexModelManager/scripts/build-app.sh` before delivery. Validate

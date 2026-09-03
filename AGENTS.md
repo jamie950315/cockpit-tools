@@ -26,6 +26,8 @@ live sidecar manifest, but it must never edit routing stores or credentials.
 Cockpit built-in models remain locked at the top in their catalog priority
 order; other models can be selected and moved repeatedly with the Up/Down keys
 but cannot cross that boundary.
+Selecting a model clears prior search-field editing focus, and closing the last
+Model Manager window terminates the application.
 Keep its file-change guard, restricted backups, unknown-field preservation, and
 500K/450K context preservation. Build artifacts under its `.build/` and `dist/`
 directories are not source. After changing it, run its Swift tests, build and

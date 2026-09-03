@@ -1,8 +1,15 @@
 import AppKit
 import SwiftUI
 
+final class CodexModelManagerAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
+    }
+}
+
 @main
 struct CodexModelManagerApp: App {
+    @NSApplicationDelegateAdaptor(CodexModelManagerAppDelegate.self) private var appDelegate
     @StateObject private var store = CatalogStore()
 
     var body: some Scene {

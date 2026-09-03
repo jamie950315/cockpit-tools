@@ -10,6 +10,9 @@ modify the Cockpit Tools, Codex, or ChatGPT application binaries.
 - Select a movable model and use the Up/Down arrow keys for fast repeated
   movement, or enter an exact one-based position below the locked section.
 - Show a persistent selection highlight and lock indicators in the model list.
+- End search-field editing when a model is selected so Up/Down movement works
+  immediately after filtering.
+- Quit the application when its last window is closed.
 - Edit the display name without changing the routed model ID.
 - Add models that are already advertised by Cockpit's live sidecar manifest.
 - Automatically detect provider, mixed-route, and catalog changes while the app

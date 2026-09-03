@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import CodexModelManager
@@ -9,6 +10,11 @@ private func model(_ id: String, name: String? = nil) -> CatalogModel {
         "context_window": .integer(526_316),
         "auto_compact_token_limit": .integer(450_000),
     ])
+}
+
+@Test @MainActor func closingLastWindowTerminatesApplication() {
+    let delegate = CodexModelManagerAppDelegate()
+    #expect(delegate.applicationShouldTerminateAfterLastWindowClosed(NSApplication.shared))
 }
 
 @Test func movesModelsByOneBasedPosition() {

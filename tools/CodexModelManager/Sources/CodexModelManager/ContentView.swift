@@ -158,6 +158,7 @@ struct ContentView: View {
                                 canMoveUp: store.canMove(id: model.id, by: -1),
                                 canMoveDown: store.canMove(id: model.id, by: 1),
                                 onSelect: {
+                                    NSApp.keyWindow?.makeFirstResponder(nil)
                                     selectedModelID = model.id
                                 },
                                 onMove: { store.move(id: model.id, toPosition: $0) },
