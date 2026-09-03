@@ -19,6 +19,15 @@ Never commit Cockpit runtime stores, API keys, OAuth tokens, account IDs, auth f
 
 Before publishing code changes, run the relevant frontend, Go, Rust, and macOS bundle checks described in the repository documentation. A model appearing in a catalog is not proof of correct routing; validate an official OAuth request and a namespaced CLIProxyAPI request independently in the target environment.
 
+The standalone native macOS utility under `tools/CodexModelManager/` manages
+the ordered model definitions used by Cockpit's experimental catalog. It may
+reorder models, change display names, and add models already advertised by the
+live sidecar manifest, but it must never edit routing stores or credentials.
+Keep its file-change guard, restricted backups, unknown-field preservation, and
+500K/450K context preservation. Build artifacts under its `.build/` and `dist/`
+directories are not source. After changing it, run its Swift tests, build and
+sign the app, and inspect the real UI against the live catalog without saving.
+
 The Pi5 CLIProxyAPI deployment has a daily, rollback-capable updater maintained
 under `ops/cliproxyapi/`. Keep the container pinned by immutable digest through
 its `.env`; an update is successful only after the runtime version, model list,
@@ -85,6 +94,10 @@ producing an actual `model_context_window` of 500000; a real new CLI task
 confirmed that value. Keep `model_catalog_json = "cockpit-model-catalog.json"`.
 The raw 526316 deliberately compensates for Codex's 95-percent factor and may
 overstate smaller upstream models, an accepted user-selected tradeoff.
+Codex Desktop currently renders only the first 50 internal model definitions.
+The model manager changes the actual definition array order rather than
+prefixing display names; moving a model into that first-50 window is the durable
+way to make it visible without modifying ChatGPT or Codex binaries.
 
 CTPS Windows deployment (verified 2026-09-02): official Cockpit Tools 1.3.36
 x64 and Codex CLI 0.152.1 are installed. Its Cockpit store contains the same

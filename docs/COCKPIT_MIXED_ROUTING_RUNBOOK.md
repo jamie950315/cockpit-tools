@@ -625,6 +625,36 @@ to every current definition, let Cockpit regenerate its managed catalog, and
 repeat both live route checks. Historical user-owned catalogs remain recovery
 artifacts only and are not the active Mac configuration.
 
+### Native ordered-catalog manager
+
+`tools/CodexModelManager/` contains a standalone SwiftUI app for managing the
+Mac catalog without patching Cockpit, ChatGPT, or Codex binaries. Codex Desktop
+currently shows only the first 50 internal model definitions and preserves the
+catalog array order, so editing a display name does not move a model into the
+visible set. The utility changes the actual order in both the version-4
+experimental catalog input and the managed catalog, updates names, and can add
+models already present in the live sidecar manifest.
+
+The utility must remain narrower than the model synchronization workflow:
+
+- It reads the live manifest and provider model IDs but never reads or modifies
+  provider keys, OAuth records, account IDs, routing collections, or namespaces.
+- A namespaced model may be added only after the live manifest advertises it;
+  provider-only models remain blocked until the normal route synchronization is
+  complete.
+- Every save backs up both writable catalog files with restricted permissions,
+  preserves unknown fields and context values, and refuses to overwrite files
+  changed externally since load.
+- A save does not reload a running Codex app-server. Restart Codex through the
+  normal API Service path only after active work is finished.
+
+Build and verify it independently:
+
+```bash
+swift test --package-path tools/CodexModelManager
+tools/CodexModelManager/scripts/build-app.sh
+```
+
 Do not replace ChatGPT OAuth with a CLIProxyAPI login. `codex login status` must remain `Logged in using ChatGPT`.
 
 ## Complete live verification
