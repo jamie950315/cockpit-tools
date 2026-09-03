@@ -127,6 +127,13 @@ CLIProxyAPI `modelCatalog` as a JSON array; a PowerShell `ConvertTo-Json`
 round-trip can wrap it as `{Count, value}` and must be unwrapped. PPLX proxy
 commit `f215bde` accepts Codex/OpenAI content-part arrays; keep this
 compatibility when changing its prompt handling.
+After a safe Cockpit relaunch in Windows interactive Session 1, the CTPS live
+sidecar exposed all 125 configured `CPA/*` routes, including 66
+`CPA/opencode/*` routes. WSL observed the same live set through CTPS. A real
+`CPA/opencode/big-pickle` request from both environments reached OpenCode and
+returned `429 FreeUsageLimitError` rather than `model_route_not_available`; a
+real official OAuth request returned HTTP 200. CTPS and WSL `codex debug models`
+retained 500000 context, 100 percent effective context, and 450000 compact.
 
 RPi SSH-host Codex context uses provider `pi5-api`. Its
 `/home/jamie/.codex/config.toml` points `model_catalog_json` to

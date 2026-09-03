@@ -229,6 +229,15 @@ Known-good state verified on 2026-09-03:
   Cockpit from a Codex task that uses the sidecar.
 - On CTPS, keep `modelCatalog` as a JSON array. If it becomes `{Count, value}`,
   unwrap it; do not round-trip the store through PowerShell `ConvertTo-Json`.
+- After the 2026-09-03 OpenCode refresh, CTPS was safely relaunched in Windows
+  interactive Session 1 with no CTPS or WSL requests active. Its live sidecar
+  then exposed 125 `CPA/*` models, including 66 `CPA/opencode/*` models, and WSL
+  observed the same set through CTPS. Both environments reached
+  `CPA/opencode/big-pickle` and received `429 FreeUsageLimitError` instead of a
+  missing-route 404. A real official OAuth request returned HTTP 200. CTPS and
+  WSL `codex debug models` retained 500000 context, 100 percent effective
+  context, and 450000 compact. The temporary Scheduled Task and scripts used
+  for the interactive relaunch were removed after verification.
 
 Refreshing the model list in Cockpit's provider editor is not sufficient in
 1.3.36. The existing API key's mixed route embeds its own
