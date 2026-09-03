@@ -1,9 +1,11 @@
+import AppKit
 import Combine
 import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var store: CatalogStore
     @State private var additionsOpen = false
+    @State private var selectedModelID: UUID?
     private let refreshTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -20,6 +22,11 @@ struct ContentView: View {
             if store.models.isEmpty { store.load() }
         }
         .onReceive(refreshTimer) { _ in store.refreshSourcesIfNeeded() }
+        .onChange(of: store.models.map(\.id)) { _, ids in
+            if let selectedModelID, !ids.contains(selectedModelID) {
+                self.selectedModelID = nil
+            }
+        }
         .sheet(isPresented: $additionsOpen) {
             AddModelsSheet(isPresented: $additionsOpen)
                 .environmentObject(store)
@@ -62,7 +69,7 @@ struct ContentView: View {
                             .font(.callout.weight(.semibold))
                         Text(store.isCockpitRunning
                             ? "安全起見，請先完成使用中的 Codex 工作並關閉 Cockpit Tools。"
-                            : "同步只會加入即時路由已宣告的模型，不會修改路由或移除項目。")
+                            : "同步只會新增模型，不會移除或重新命名現有項目。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -74,24 +81,6 @@ struct ContentView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(store.isCockpitRunning || store.isDirty || store.isLoading)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 11)
-                .background(Color.orange.opacity(0.09))
-                Divider()
-            }
-            if !store.providerOnlyModels.isEmpty {
-                HStack(spacing: 10) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("有 \(store.providerOnlyModels.count) 個供應商模型尚未進入即時路由")
-                            .font(.callout.weight(.semibold))
-                        Text("請先在 Cockpit Tools 完成路由更新；此工具不會修改路由設定。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 11)
@@ -154,21 +143,52 @@ struct ContentView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 7)
 
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(store.visibleModels) { model in
-                        CatalogRow(
-                            model: store.binding(for: model.id),
-                            position: store.position(of: model.id),
-                            total: store.models.count,
-                            source: store.sourceLabel(for: model),
-                            onMove: { store.move(id: model.id, toPosition: $0) },
-                            onNudge: { store.move(id: model.id, by: $0) }
-                        )
-                        Divider()
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(store.visibleModels) { model in
+                            CatalogRow(
+                                model: store.binding(for: model.id),
+                                position: store.position(of: model.id),
+                                total: store.models.count,
+                                minimumPosition: store.firstMovablePosition,
+                                source: store.sourceLabel(for: model),
+                                isLocked: store.isLocked(id: model.id),
+                                isSelected: selectedModelID == model.id,
+                                canMoveUp: store.canMove(id: model.id, by: -1),
+                                canMoveDown: store.canMove(id: model.id, by: 1),
+                                onSelect: {
+                                    selectedModelID = model.id
+                                },
+                                onMove: { store.move(id: model.id, toPosition: $0) },
+                                onNudge: { offset in
+                                    if store.move(id: model.id, by: offset) {
+                                        withAnimation(.easeOut(duration: 0.12)) {
+                                            proxy.scrollTo(model.id, anchor: .center)
+                                        }
+                                    }
+                                }
+                            )
+                            .id(model.id)
+                            Divider()
+                        }
                     }
+                    .padding(.horizontal, 12)
                 }
-                .padding(.horizontal, 12)
+                .background {
+                    ModelMoveKeyMonitor { offset in
+                        guard !additionsOpen,
+                              let selectedModelID,
+                              store.move(id: selectedModelID, by: offset) else { return false }
+                        DispatchQueue.main.async {
+                            withAnimation(.easeOut(duration: 0.12)) {
+                                proxy.scrollTo(selectedModelID, anchor: .center)
+                            }
+                        }
+                        return true
+                    }
+                    .frame(width: 0, height: 0)
+                }
             }
             .overlay {
                 if store.visibleModels.isEmpty {
@@ -208,14 +228,14 @@ struct ContentView: View {
             }
             .buttonStyle(.bordered)
             .disabled(store.isCockpitRunning || store.isDirty || store.isLoading || store.pendingSyncCount == 0)
-            .help(store.isCockpitRunning ? "請先關閉 Cockpit Tools" : "將即時路由的新模型加入 Codex 清單")
+            .help(store.isCockpitRunning ? "請先關閉 Cockpit Tools" : "將供應商的新模型加入混合路由與 Codex 清單")
             Button {
                 store.save()
             } label: {
                 Label("儲存清單", systemImage: "square.and.arrow.down")
             }
             .buttonStyle(.borderedProminent)
-            .disabled((!store.isDirty && !store.needsPriorityRepair) || store.isLoading)
+            .disabled(!store.isDirty || store.isLoading)
             .keyboardShortcut("s", modifiers: .command)
         }
         .padding(.horizontal, 20)
@@ -227,7 +247,13 @@ private struct CatalogRow: View {
     @Binding var model: CatalogModel
     let position: Int
     let total: Int
+    let minimumPosition: Int
     let source: String
+    let isLocked: Bool
+    let isSelected: Bool
+    let canMoveUp: Bool
+    let canMoveDown: Bool
+    let onSelect: () -> Void
     let onMove: (Int) -> Void
     let onNudge: (Int) -> Void
     @State private var positionText: String
@@ -237,14 +263,26 @@ private struct CatalogRow: View {
         model: Binding<CatalogModel>,
         position: Int,
         total: Int,
+        minimumPosition: Int,
         source: String,
+        isLocked: Bool,
+        isSelected: Bool,
+        canMoveUp: Bool,
+        canMoveDown: Bool,
+        onSelect: @escaping () -> Void,
         onMove: @escaping (Int) -> Void,
         onNudge: @escaping (Int) -> Void
     ) {
         _model = model
         self.position = position
         self.total = total
+        self.minimumPosition = minimumPosition
         self.source = source
+        self.isLocked = isLocked
+        self.isSelected = isSelected
+        self.canMoveUp = canMoveUp
+        self.canMoveDown = canMoveDown
+        self.onSelect = onSelect
         self.onMove = onMove
         self.onNudge = onNudge
         _positionText = State(initialValue: String(position))
@@ -253,27 +291,39 @@ private struct CatalogRow: View {
     var body: some View {
         HStack(spacing: 12) {
             HStack(spacing: 5) {
-                TextField("", text: $positionText)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 43)
-                    .multilineTextAlignment(.center)
-                    .focused($positionFocused)
-                    .onSubmit(commitPosition)
-                    .onChange(of: position) { _, newValue in
-                        if !positionFocused { positionText = String(newValue) }
-                    }
-                    .onChange(of: positionFocused) { wasFocused, isFocused in
-                        if wasFocused && !isFocused { commitPosition() }
-                    }
+                if isLocked {
+                    Text(position, format: .number)
+                        .frame(width: 30, alignment: .trailing)
+                    Image(systemName: "lock.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } else {
+                    TextField("", text: $positionText)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 43)
+                        .multilineTextAlignment(.center)
+                        .focused($positionFocused)
+                        .onSubmit(commitPosition)
+                        .onChange(of: position) { _, newValue in
+                            if !positionFocused { positionText = String(newValue) }
+                        }
+                        .onChange(of: positionFocused) { wasFocused, isFocused in
+                            if wasFocused && !isFocused { commitPosition() }
+                        }
+                }
             }
             .frame(width: 72, alignment: .leading)
 
-            Text(model.modelID)
-                .font(.system(.body, design: .monospaced))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .help(model.modelID)
-                .frame(minWidth: 270, maxWidth: .infinity, alignment: .leading)
+            Button(action: onSelect) {
+                Text(model.modelID)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(minWidth: 270, maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(isLocked ? "內建模型位置固定" : "點選後可用方向鍵上下移動")
 
             TextField("顯示名稱", text: $model.displayName)
                 .textFieldStyle(.roundedBorder)
@@ -293,15 +343,32 @@ private struct CatalogRow: View {
                 .frame(width: 116, alignment: .leading)
 
             HStack(spacing: 2) {
-                Button { onNudge(-1) } label: { Image(systemName: "chevron.up") }
-                    .disabled(position <= 1)
-                Button { onNudge(1) } label: { Image(systemName: "chevron.down") }
-                    .disabled(position >= total)
+                if isLocked {
+                    Image(systemName: "lock.fill")
+                        .foregroundStyle(.secondary)
+                        .help("內建模型位置固定")
+                } else {
+                    Button { onNudge(-1) } label: { Image(systemName: "chevron.up") }
+                        .disabled(!canMoveUp)
+                    Button { onNudge(1) } label: { Image(systemName: "chevron.down") }
+                        .disabled(!canMoveDown)
+                }
             }
             .buttonStyle(.borderless)
             .frame(width: 64)
         }
-        .padding(.vertical, 2)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.clear)
+        )
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(Color.accentColor.opacity(0.45), lineWidth: 1)
+            }
+        }
     }
 
     private func commitPosition() {
@@ -309,8 +376,67 @@ private struct CatalogRow: View {
             positionText = String(position)
             return
         }
-        onMove(requested)
+        onMove(min(max(requested, minimumPosition), total))
         positionFocused = false
+    }
+}
+
+private struct ModelMoveKeyMonitor: NSViewRepresentable {
+    let onMove: (Int) -> Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onMove: onMove)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        context.coordinator.start()
+        return NSView(frame: .zero)
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.onMove = onMove
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.stop()
+    }
+
+    @MainActor
+    final class Coordinator {
+        var onMove: (Int) -> Bool
+        private var monitor: Any?
+
+        init(onMove: @escaping (Int) -> Bool) {
+            self.onMove = onMove
+        }
+
+        func start() {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self,
+                      event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+                      !Self.isEditingText else { return event }
+                let offset: Int
+                switch event.keyCode {
+                case 126: offset = -1
+                case 125: offset = 1
+                default: return event
+                }
+                return onMove(offset) ? nil : event
+            }
+        }
+
+        func stop() {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+                self.monitor = nil
+            }
+        }
+
+        private static var isEditingText: Bool {
+            guard let textView = NSApp.keyWindow?.firstResponder as? NSTextView else { return false }
+            return textView.isFieldEditor
+        }
     }
 }
 

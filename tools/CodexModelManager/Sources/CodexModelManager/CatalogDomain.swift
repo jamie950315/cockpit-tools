@@ -74,14 +74,16 @@ struct LoadedCatalog: Sendable {
     var providerModelIDs: [String]
     var routeRoot: [String: JSONValue]
     var routeModelIDs: [String]
+    var lockedModelIDs: [String]
+    var orderWasNormalized: Bool
     var configFingerprint: Data
     var managedFingerprint: Data
     var providerFingerprint: Data
     var routeFingerprint: Data
-    var prioritiesMatchOrder: Bool
 }
 
 struct ModelSyncResult: Sendable {
+    let addedToRoute: [String]
     let addedToCatalog: [String]
     let backupDirectory: URL?
 }
@@ -104,6 +106,7 @@ enum CatalogError: LocalizedError, Equatable {
     case missingMixedRoute
     case unsafeMixedRoute
     case invalidProviderCatalog
+    case lockedModelOrder
 
     var errorDescription: String? {
         switch self {
@@ -118,22 +121,57 @@ enum CatalogError: LocalizedError, Equatable {
         case .missingMixedRoute: "找不到使用 modelRouting 的 API key，或找不到大寫 CPA 路由。"
         case .unsafeMixedRoute: "混合路由不是 OAuth 預設加 strict 失敗策略，已停止同步以保護現有路由。"
         case .invalidProviderCatalog: "找不到有效的 CLIProxyAPI 模型清單。請先在 Cockpit Tools 刷新並儲存供應商清單。"
+        case .lockedModelOrder: "內建模型的位置不可變更，自訂模型只能排列在內建模型之後。"
         }
     }
 }
 
 enum CatalogEditor {
-    static func prioritiesMatchOrder(
+    static func builtInModelIDs(
+        managedRoot: [String: JSONValue],
+        availableModels: [CatalogModel]
+    ) -> [String] {
+        let available = Set(availableModels.map { $0.modelID.lowercased() })
+        return (managedRoot["models"]?.arrayValue ?? [])
+            .enumerated()
+            .compactMap { index, value -> (priority: Int64, index: Int, id: String)? in
+                guard let object = value.objectValue,
+                      let id = object["slug"]?.stringValue,
+                      !id.contains("/"),
+                      available.contains(id.lowercased()),
+                      object["visibility"]?.stringValue != "hide",
+                      let priority = object["priority"]?.integerValue,
+                      priority >= 0,
+                      priority < 1_000 else { return nil }
+                return (priority, index, id)
+            }
+            .sorted {
+                $0.priority == $1.priority ? $0.index < $1.index : $0.priority < $1.priority
+            }
+            .map(\.id)
+    }
+
+    static func placingBuiltInsFirst(
         models: [CatalogModel],
-        managedRoot: [String: JSONValue]
+        lockedModelIDs: [String]
+    ) -> [CatalogModel] {
+        let lockedKeys = lockedModelIDs.map { $0.lowercased() }
+        let lockedSet = Set(lockedKeys)
+        let byID = Dictionary(
+            models.map { ($0.modelID.lowercased(), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return lockedKeys.compactMap { byID[$0] }
+            + models.filter { !lockedSet.contains($0.modelID.lowercased()) }
+    }
+
+    static func preservesLockedOrder(
+        models: [CatalogModel],
+        lockedModelIDs: [String]
     ) -> Bool {
-        guard let managedValues = managedRoot["models"]?.arrayValue,
-              managedValues.count == models.count else { return false }
-        return zip(models.indices, managedValues).allSatisfy { index, value in
-            guard let object = value.objectValue else { return false }
-            return object["slug"]?.stringValue == models[index].modelID
-                && object["priority"]?.integerValue == Int64(index + 1)
-        }
+        let expected = lockedModelIDs.map { $0.lowercased() }
+        guard models.count >= expected.count else { return false }
+        return Array(models.prefix(expected.count).map { $0.modelID.lowercased() }) == expected
     }
 
     static func differences(
@@ -151,9 +189,17 @@ enum CatalogEditor {
         )
     }
 
-    static func move(models: [CatalogModel], from source: Int, toPosition position: Int) -> [CatalogModel] {
+    static func move(
+        models: [CatalogModel],
+        from source: Int,
+        toPosition position: Int,
+        lockedModelIDs: [String] = []
+    ) -> [CatalogModel] {
         guard models.indices.contains(source), !models.isEmpty else { return models }
-        let destination = min(max(position, 1), models.count) - 1
+        let locked = Set(lockedModelIDs.map { $0.lowercased() })
+        guard !locked.contains(models[source].modelID.lowercased()) else { return models }
+        let minimumPosition = min(lockedModelIDs.count + 1, models.count)
+        let destination = min(max(position, minimumPosition), models.count) - 1
         guard source != destination else { return models }
         var result = models
         let model = result.remove(at: source)

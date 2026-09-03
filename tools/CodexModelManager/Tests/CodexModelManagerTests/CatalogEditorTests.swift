@@ -23,22 +23,51 @@ private func model(_ id: String, name: String? = nil) -> CatalogModel {
     #expect(CatalogEditor.move(models: models, from: 0, toPosition: 99).map(\.modelID) == ["b", "c", "a"])
 }
 
-@Test func detectsPriorityOrderDrift() {
-    let models = [model("CPA/a"), model("gpt-official")]
-    let stale: [String: JSONValue] = [
+@Test func locksBuiltInModelsAboveMovableModels() {
+    let original = [
+        model("gpt-5.6-sol"),
+        model("CPA/grok-4.6"),
+        model("gpt-5.6-terra"),
+        model("gpt-5.3-codex"),
+    ]
+    let managedRoot: [String: JSONValue] = [
         "models": .array([
-            .object(["slug": .string("CPA/a"), "priority": .integer(1_000)]),
-            .object(["slug": .string("gpt-official"), "priority": .integer(2)]),
+            .object(["slug": .string("gpt-5.6-sol"), "priority": .integer(1), "visibility": .string("list")]),
+            .object(["slug": .string("CPA/grok-4.6"), "priority": .integer(1001), "visibility": .string("list")]),
+            .object(["slug": .string("gpt-5.6-terra"), "priority": .integer(2), "visibility": .string("list")]),
+            .object(["slug": .string("gpt-5.3-codex"), "priority": .integer(1003), "visibility": .string("list")]),
         ])
     ]
-    let aligned: [String: JSONValue] = [
-        "models": .array([
-            .object(["slug": .string("CPA/a"), "priority": .integer(1)]),
-            .object(["slug": .string("gpt-official"), "priority": .integer(2)]),
-        ])
-    ]
-    #expect(!CatalogEditor.prioritiesMatchOrder(models: models, managedRoot: stale))
-    #expect(CatalogEditor.prioritiesMatchOrder(models: models, managedRoot: aligned))
+
+    let locked = CatalogEditor.builtInModelIDs(
+        managedRoot: managedRoot,
+        availableModels: original
+    )
+    #expect(locked == ["gpt-5.6-sol", "gpt-5.6-terra"])
+
+    let arranged = CatalogEditor.placingBuiltInsFirst(models: original, lockedModelIDs: locked)
+    #expect(arranged.map(\.modelID) == [
+        "gpt-5.6-sol", "gpt-5.6-terra", "CPA/grok-4.6", "gpt-5.3-codex",
+    ])
+    #expect(CatalogEditor.preservesLockedOrder(models: arranged, lockedModelIDs: locked))
+
+    let lockedMove = CatalogEditor.move(
+        models: arranged,
+        from: 0,
+        toPosition: 4,
+        lockedModelIDs: locked
+    )
+    #expect(lockedMove == arranged)
+
+    let customMoveAboveBoundary = CatalogEditor.move(
+        models: arranged,
+        from: 3,
+        toPosition: 1,
+        lockedModelIDs: locked
+    )
+    #expect(customMoveAboveBoundary.map(\.modelID) == [
+        "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.3-codex", "CPA/grok-4.6",
+    ])
 }
 
 @Test func detectsProviderAdditionsAndRemovalsWithoutChangingEitherSet() {
@@ -103,15 +132,62 @@ private func model(_ id: String, name: String? = nil) -> CatalogModel {
     #expect(reloaded.models[0].displayName == "First")
     #expect(reloaded.configRoot["future"] == .object(["keep": .bool(true)]))
     let managedB = reloaded.managedRoot["models"]?.arrayValue?.first?.objectValue
-    #expect(managedB?["priority"] == .integer(1))
+    #expect(managedB?["priority"] == .integer(1000))
     let managedA = reloaded.managedRoot["models"]?.arrayValue?[1].objectValue
     #expect(managedA?["future"] == .string("keep"))
     let managedC = reloaded.managedRoot["models"]?.arrayValue?.last?.objectValue
     #expect(managedC?["slug"] == .string("CPA/c"))
     #expect(managedC?["display_name"] == .string("Third"))
-    #expect(managedA?["priority"] == .integer(2))
-    #expect(managedC?["priority"] == .integer(3))
+    #expect(managedC?["priority"] == .integer(1002))
     #expect(managedC?["context_window"] == .integer(526_316))
+}
+
+@Test func repositoryKeepsBuiltInsFixedAndReprioritizesMovableModels() throws {
+    let root = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let paths = CatalogPaths(
+        config: root.appending(path: "config.json"),
+        managedCatalog: root.appending(path: "catalog.json"),
+        manifest: root.appending(path: "manifest.json"),
+        providerCatalog: root.appending(path: "providers.json"),
+        routeStore: root.appending(path: "routes.json"),
+        backups: root.appending(path: "backups", directoryHint: .isDirectory)
+    )
+    try Data(#"{"version":4,"models":[{"model_id":"gpt-5.6-sol","display_name":"Sol"},{"model_id":"CPA/grok-4.6","display_name":"Grok"},{"model_id":"gpt-5.6-terra","display_name":"Terra"},{"model_id":"gpt-5.3-codex","display_name":"Codex"}]}"#.utf8).write(to: paths.config)
+    try Data(#"{"models":[{"slug":"gpt-5.6-sol","display_name":"Sol","priority":1,"visibility":"list"},{"slug":"CPA/grok-4.6","display_name":"Grok","priority":1001,"visibility":"list"},{"slug":"gpt-5.6-terra","display_name":"Terra","priority":2,"visibility":"list"},{"slug":"gpt-5.3-codex","display_name":"Codex","priority":1003,"visibility":"list"}]}"#.utf8).write(to: paths.managedCatalog)
+    try Data(#"{"modelIds":["CPA/grok-4.6"]}"#.utf8).write(to: paths.manifest)
+    try Data(#"[{"name":"CLIProxyAPI","modelCatalog":["grok-4.6"]}]"#.utf8).write(to: paths.providerCatalog)
+    try Data(#"{"apiKeys":[{"modelRouting":{"defaultRoute":"oauth","failurePolicy":"strict","routes":[{"namespace":"CPA","providerGateway":{"upstreamModels":["grok-4.6"]}}]}}]}"#.utf8).write(to: paths.routeStore)
+
+    let repository = CatalogRepository(paths: paths)
+    var loaded = try repository.load()
+    #expect(loaded.orderWasNormalized)
+    #expect(loaded.lockedModelIDs == ["gpt-5.6-sol", "gpt-5.6-terra"])
+    #expect(loaded.models.map(\.modelID) == [
+        "gpt-5.6-sol", "gpt-5.6-terra", "CPA/grok-4.6", "gpt-5.3-codex",
+    ])
+
+    loaded.models = CatalogEditor.move(
+        models: loaded.models,
+        from: 3,
+        toPosition: 1,
+        lockedModelIDs: loaded.lockedModelIDs
+    )
+    _ = try repository.save(loaded, models: loaded.models)
+
+    let reloaded = try repository.load()
+    #expect(!reloaded.orderWasNormalized)
+    #expect(reloaded.models.map(\.modelID) == [
+        "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.3-codex", "CPA/grok-4.6",
+    ])
+    let managed = reloaded.managedRoot["models"]?.arrayValue?.compactMap(\.objectValue) ?? []
+    #expect(managed[0]["priority"] == .integer(1))
+    #expect(managed[1]["priority"] == .integer(2))
+    #expect(managed[2]["priority"] == .integer(1002))
+    #expect(managed[3]["priority"] == .integer(1003))
 }
 
 @Test func refusesToOverwriteExternalChanges() throws {
@@ -145,7 +221,7 @@ private func model(_ id: String, name: String? = nil) -> CatalogModel {
     }
 }
 
-@Test func synchronizesManifestModelsWithoutChangingRouteOrSecrets() throws {
+@Test func synchronizesProviderOnlyModelsWithoutRemovingOrExposingUnknownFields() throws {
     let root = URL(fileURLWithPath: NSTemporaryDirectory())
         .appending(path: UUID().uuidString, directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -160,20 +236,20 @@ private func model(_ id: String, name: String? = nil) -> CatalogModel {
     )
     try Data(#"{"models":[{"model_id":"CPA/old","display_name":"Old","context_window":526316,"auto_compact_token_limit":450000}]}"#.utf8).write(to: paths.config)
     try Data(#"{"models":[{"slug":"CPA/old","display_name":"Old","visibility":"list","future":"keep"}]}"#.utf8).write(to: paths.managedCatalog)
-    try Data(#"{"modelIds":["CPA/old","CPA/new","CPA/newer"]}"#.utf8).write(to: paths.manifest)
+    try Data(#"{"modelIds":["CPA/old"]}"#.utf8).write(to: paths.manifest)
     try Data(#"[{"name":"Other","modelCatalog":["wrong"]},{"name":"CLIProxyAPI","modelCatalog":["old","new","new","newer"],"apiKeys":["provider-secret"]}]"#.utf8).write(to: paths.providerCatalog)
-    try Data(#"{"topFuture":"keep","apiKeys":[{"label":"plain","key":"first-secret","modelRouting":null},{"label":"routed","key":"second-secret","unknown":"keep","modelRouting":{"defaultRoute":"oauth","failurePolicy":"strict","routes":[{"id":"route","namespace":"CPA","providerGateway":{"apiKey":"gateway-secret","wireApi":"responses","upstreamModels":["old","new","newer"]}}]}}]}"#.utf8).write(to: paths.routeStore)
+    try Data(#"{"topFuture":"keep","apiKeys":[{"label":"plain","key":"first-secret","modelRouting":null},{"label":"routed","key":"second-secret","unknown":"keep","modelRouting":{"defaultRoute":"oauth","failurePolicy":"strict","routes":[{"id":"route","namespace":"CPA","providerGateway":{"apiKey":"gateway-secret","wireApi":"responses","upstreamModels":["old"]}}]}}]}"#.utf8).write(to: paths.routeStore)
 
     let repository = CatalogRepository(paths: paths)
     let loaded = try repository.load()
-    let routeBefore = try Data(contentsOf: paths.routeStore)
-    let result = try repository.synchronizeManifestAdditions(loaded)
+    #expect(loaded.routeModelIDs == ["CPA/old"])
+    let result = try repository.synchronizeProviderAdditions(loaded)
+    #expect(result.addedToRoute == ["CPA/new", "CPA/newer"])
     #expect(result.addedToCatalog == ["CPA/new", "CPA/newer"])
 
     let reloaded = try repository.load()
     #expect(reloaded.routeModelIDs == ["CPA/old", "CPA/new", "CPA/newer"])
     #expect(reloaded.models.map(\.modelID) == ["CPA/old", "CPA/new", "CPA/newer"])
-    #expect(try Data(contentsOf: paths.routeStore) == routeBefore)
     #expect(reloaded.routeRoot["topFuture"] == .string("keep"))
     let routedAccount = reloaded.routeRoot["apiKeys"]?.arrayValue?[1].objectValue
     #expect(routedAccount?["key"] == .string("second-secret"))
@@ -208,7 +284,7 @@ private func model(_ id: String, name: String? = nil) -> CatalogModel {
     let loaded = try repository.load()
     try Data(#"{"changed":true,"apiKeys":[{"modelRouting":{"defaultRoute":"oauth","failurePolicy":"strict","routes":[{"namespace":"CPA","providerGateway":{"upstreamModels":["a"]}}]}}]}"#.utf8).write(to: paths.routeStore)
     #expect(throws: CatalogError.filesChangedExternally) {
-        _ = try repository.synchronizeManifestAdditions(loaded)
+        _ = try repository.synchronizeProviderAdditions(loaded)
     }
 
     try Data(#"{"apiKeys":[{"modelRouting":{"defaultRoute":"provider","failurePolicy":"fallback","routes":[{"namespace":"CPA","providerGateway":{"upstreamModels":["a"]}}]}}]}"#.utf8).write(to: paths.routeStore)

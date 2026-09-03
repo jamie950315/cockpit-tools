@@ -9,11 +9,11 @@ final class CatalogStore: ObservableObject {
     @Published var routedModelIDs: [String] = []
     @Published var providerModelIDs: [String] = []
     @Published var routeModelIDs: [String] = []
+    @Published private(set) var lockedModelIDs: [String] = []
     @Published var isCockpitRunning = false
     @Published var searchText = ""
     @Published var isLoading = false
     @Published var isDirty = false
-    @Published var needsPriorityRepair = false
     @Published var message: String?
     @Published var errorMessage: String?
 
@@ -52,7 +52,11 @@ final class CatalogStore: ObservableObject {
     }
 
     var pendingSyncCount: Int {
-        Set(routeOnlyCatalogAdditions.map { $0.lowercased() }).count
+        Set((providerOnlyModels + routeOnlyCatalogAdditions).map { $0.lowercased() }).count
+    }
+
+    var firstMovablePosition: Int {
+        min(lockedModelIDs.count + 1, max(models.count, 1))
     }
 
     private var catalogDifference: ModelCatalogDifference {
@@ -69,16 +73,12 @@ final class CatalogStore: ObservableObject {
         do {
             let result = try repository.load()
             loaded = result
-            models = result.models
-            routedModelIDs = result.routedModelIDs
-            providerModelIDs = result.providerModelIDs
-            routeModelIDs = result.routeModelIDs
-            needsPriorityRepair = !result.prioritiesMatchOrder
+            apply(result)
             refreshCockpitState()
-            isDirty = false
+            isDirty = result.orderWasNormalized
             errorMessage = nil
-            message = needsPriorityRepair
-                ? "目前位置尚未完整套用到 Codex 排序。請儲存清單以修正。"
+            message = result.orderWasNormalized
+                ? "已將內建模型固定在最上方；請儲存清單套用安全順序。"
                 : "已載入 \(models.count) 個模型。"
         } catch {
             errorMessage = error.localizedDescription
@@ -89,13 +89,9 @@ final class CatalogStore: ObservableObject {
         refreshCockpitState()
         guard !isDirty, let loaded, repository.sourcesChanged(since: loaded) else { return }
         load()
-        if pendingSyncCount > 0 {
-            message = "偵測到 \(pendingSyncCount) 個模型等待同步。"
-        } else if !providerOnlyModels.isEmpty {
-            message = "偵測到 \(providerOnlyModels.count) 個供應商模型尚未進入即時路由。"
-        } else {
-            message = "來源已自動重新載入。"
-        }
+        message = pendingSyncCount > 0
+            ? "偵測到 \(pendingSyncCount) 個模型等待同步。"
+            : "來源已自動重新載入。"
     }
 
     func synchronizeModels() {
@@ -107,21 +103,17 @@ final class CatalogStore: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            let result = try repository.synchronizeManifestAdditions(loaded)
+            let result = try repository.synchronizeProviderAdditions(loaded)
             self.loaded = try repository.load()
             if let refreshed = self.loaded {
-                models = refreshed.models
-                routedModelIDs = refreshed.routedModelIDs
-                providerModelIDs = refreshed.providerModelIDs
-                routeModelIDs = refreshed.routeModelIDs
-                needsPriorityRepair = !refreshed.prioritiesMatchOrder
+                apply(refreshed)
             }
             isDirty = false
             errorMessage = nil
-            if result.addedToCatalog.isEmpty {
+            if result.addedToRoute.isEmpty && result.addedToCatalog.isEmpty {
                 message = "供應商、混合路由與 Codex 清單已同步。"
             } else {
-                message = "已同步：Codex 清單新增 \(result.addedToCatalog.count) 個。重新啟動 Codex 後載入新清單。"
+                message = "已同步：路由新增 \(result.addedToRoute.count) 個，Codex 清單新增 \(result.addedToCatalog.count) 個。請重新開啟 Cockpit，再從 API Service 啟動 Codex。"
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -145,13 +137,27 @@ final class CatalogStore: ObservableObject {
         (models.firstIndex(where: { $0.id == id }) ?? 0) + 1
     }
 
-    func move(id: UUID, toPosition position: Int) {
-        guard let source = models.firstIndex(where: { $0.id == id }) else { return }
-        models = CatalogEditor.move(models: models, from: source, toPosition: position)
+    @discardableResult
+    func move(id: UUID, toPosition position: Int) -> Bool {
+        guard let source = models.firstIndex(where: { $0.id == id }) else { return false }
+        guard !isLocked(id: id) else {
+            message = "內建模型的位置已鎖定。"
+            return false
+        }
+        let moved = CatalogEditor.move(
+            models: models,
+            from: source,
+            toPosition: position,
+            lockedModelIDs: lockedModelIDs
+        )
+        guard moved != models else { return false }
+        models = moved
         markDirty()
+        return true
     }
 
-    func move(id: UUID, by offset: Int) {
+    @discardableResult
+    func move(id: UUID, by offset: Int) -> Bool {
         move(id: id, toPosition: position(of: id) + offset)
     }
 
@@ -169,7 +175,9 @@ final class CatalogStore: ObservableObject {
         do {
             let backup = try repository.save(loaded, models: models)
             self.loaded = try repository.load()
-            needsPriorityRepair = !(self.loaded?.prioritiesMatchOrder ?? false)
+            if let refreshed = self.loaded {
+                apply(refreshed)
+            }
             isDirty = false
             errorMessage = nil
             message = "已儲存，備份為 \(backup.lastPathComponent)。重新啟動 Codex 後載入新清單。"
@@ -183,15 +191,36 @@ final class CatalogStore: ObservableObject {
     }
 
     func sourceLabel(for model: CatalogModel) -> String {
+        if isLocked(id: model.id) { return "內建" }
         if !model.modelID.contains("/") { return "官方" }
         let routed = Set(routedModelIDs.map { $0.lowercased() })
         return routed.contains(model.modelID.lowercased()) ? "已路由" : "不可用"
+    }
+
+    func isLocked(id: UUID) -> Bool {
+        guard let model = models.first(where: { $0.id == id }) else { return false }
+        let locked = Set(lockedModelIDs.map { $0.lowercased() })
+        return locked.contains(model.modelID.lowercased())
+    }
+
+    func canMove(id: UUID, by offset: Int) -> Bool {
+        guard !isLocked(id: id) else { return false }
+        let target = position(of: id) + offset
+        return target >= firstMovablePosition && target <= models.count
     }
 
     private func markDirty() {
         isDirty = true
         message = nil
         errorMessage = nil
+    }
+
+    private func apply(_ catalog: LoadedCatalog) {
+        models = catalog.models
+        routedModelIDs = catalog.routedModelIDs
+        providerModelIDs = catalog.providerModelIDs
+        routeModelIDs = catalog.routeModelIDs
+        lockedModelIDs = catalog.lockedModelIDs
     }
 
     private func refreshCockpitState() {

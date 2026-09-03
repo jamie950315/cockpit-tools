@@ -268,13 +268,14 @@ can alter or lose route data.
 
 The repository includes a native helper at `tools/CodexModelManager`. Its
 manual **同步模型** action compares the Mac CLIProxyAPI provider catalog, the
-persisted `CPA` route snapshot, live manifest, and both Mac Codex catalogs. It
-adds only manifest-advertised models to the catalogs without modifying the route
-or live manifest. The app watches those source files only while it is open and
-refreshes its difference display automatically. It makes restricted catalog
-backups and requires the user to restart Codex afterward. This helper covers the
-local Mac catalogs only; use the full cross-host workflow for route changes and
-for CTPS, WSL, and RPi.
+persisted `CPA` route snapshot, and both Mac Codex catalogs. It adds missing
+provider models to the route snapshot and catalogs without deleting models or
+editing the live manifest. The app watches those source files only while it is
+open and refreshes its difference display automatically. It blocks route writes
+while Cockpit is running, makes restricted backups, preserves unknown and
+credential fields without displaying them, and requires the user to relaunch
+Cockpit and launch Codex through API Service afterward. This helper covers the
+local Mac layers only; use the full cross-host workflow for CTPS, WSL, and RPi.
 When a refreshed provider catalog removes models, the helper reports the exact
 stale route entries but does not delete them automatically.
 
@@ -641,23 +642,23 @@ artifacts only and are not the active Mac configuration.
 
 `tools/CodexModelManager/` contains a standalone SwiftUI app for managing the
 Mac catalog without patching Cockpit, ChatGPT, or Codex binaries. Codex Desktop
-currently shows only the first 50 internal model definitions and orders them by
-ascending `priority`, not raw catalog array position. The utility changes the
-actual order in both the version-4 experimental catalog input and the managed
-catalog, writes matching sequential priorities, updates names, and can add
-models already present in the live sidecar manifest.
+currently shows only the first 50 internal model definitions after sorting by
+ascending `priority`. Cockpit's visible unprefixed entries below priority 1000
+remain fixed at the top in their built-in order. The utility lets every other
+model move below that boundary, writes Cockpit's `1000 + array index` fallback
+priority, updates names, and can add provider models through the existing
+uppercase `CPA` route.
 
 The utility must remain narrower than the model synchronization workflow:
 
-- It reads only model IDs from the live manifest, provider catalog, and routing
-  collection, and never displays or modifies provider keys, OAuth records,
-  account IDs, routing collections, or namespaces.
-- A namespaced model may be added only after the live manifest advertises it;
-  provider-only models remain blocked until the normal route synchronization is
-  complete.
-- Every save backs up both writable catalog files with restricted permissions,
-  preserves unknown fields and context values, and refuses to overwrite files
-  changed externally since load.
+- It never displays or alters provider keys, OAuth records, account IDs, or
+  unrelated routing fields. Additions-only synchronization may extend only the
+  route-bearing API key's uppercase `CPA` upstream model array while Cockpit is
+  stopped.
+- Every catalog save backs up both writable catalog files. Route synchronization
+  also backs up the credential-bearing route store with restricted permissions.
+  Both paths preserve unknown fields and refuse to overwrite files changed
+  externally since load.
 - A save does not reload a running Codex app-server. Restart Codex through the
   normal API Service path only after active work is finished.
 

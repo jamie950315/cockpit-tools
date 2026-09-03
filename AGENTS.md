@@ -23,6 +23,9 @@ The standalone native macOS utility under `tools/CodexModelManager/` manages
 the ordered model definitions used by Cockpit's experimental catalog. It may
 reorder models, change display names, and add models already advertised by the
 live sidecar manifest, but it must never edit routing stores or credentials.
+Cockpit built-in models remain locked at the top in their catalog priority
+order; other models can be selected and moved repeatedly with the Up/Down keys
+but cannot cross that boundary.
 Keep its file-change guard, restricted backups, unknown-field preservation, and
 500K/450K context preservation. Build artifacts under its `.build/` and `dist/`
 directories are not source. After changing it, run its Swift tests, build and
@@ -149,10 +152,10 @@ compatibility when changing its prompt handling.
 
 The native `tools/CodexModelManager` app can now detect provider, persisted
 mixed-route, live-manifest, and Mac Codex catalog differences while it is open.
-Its **同步模型** action is additions-only and adds only models already advertised
-by the live manifest to both Mac catalogs. Provider and route stores are read
-only. Catalog order is encoded with sequential `priority` values because Codex
-Desktop does not render the raw JSON array order directly.
+Its **同步模型** action is additions-only and extends the route-bearing API
+key's uppercase `CPA` upstream snapshot plus both Mac catalogs. It blocks route
+writes while Cockpit is running, never edits the live manifest or restarts apps,
+and requires a user-controlled Cockpit relaunch followed by API Service launch.
 Provider removals are shown as a non-destructive difference and are never
 deleted automatically.
 It does not synchronize CTPS, WSL, or RPi; use `cockpit-sync-models` for those
