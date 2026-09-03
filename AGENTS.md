@@ -108,14 +108,19 @@ route.
 Current PPLX/CLIProxyAPI model synchronization (verified 2026-09-03): the PPLX
 proxy still advertises 23 models. Pi5 CLIProxyAPI now also has OpenCode Zen as an
 `openai-compatibility` provider at `https://opencode.ai/zen/v1` with prefix
-`opencode` and a browser User-Agent header, because Cloudflare otherwise returns
-1010. Namespaced IDs are `opencode/<upstream-id>`. OpenCode paid models need a
-workspace payment method. Selecting a free OpenCode Zen model in Codex,
-such as `CPA/opencode/big-pickle`, returns a too-many-requests error; that is
-upstream rate limiting, not a missing route. After a burst of those
-errors, CLIProxyAPI may cool the OpenCode credential and temporarily omit some
-`opencode/*` IDs from `/v1/models`; restore the configured set, do not shrink
-catalogs to the cooled list. `CPA/*` catalogs follow the current CLIProxyAPI
+`opencode`. Free OpenCode models require official CLI identification headers:
+`User-Agent: opencode/<version>`, `x-opencode-client`, `x-opencode-session`,
+`x-opencode-project`, and `x-opencode-request`. A browser User-Agent that was
+added to avoid Cloudflare 1010 makes Zen treat the request as a non-official
+client and apply the fallback IP quota, which can return `429 FreeUsageLimitError`
+with no successful prior use. After switching those headers, live
+`opencode/big-pickle` and `CPA/opencode/big-pickle` requests returned HTTP 200
+with `PING`. Keep `disable-cooling: true` and `request-retry: 0` on this
+provider so a later 429 does not hide the catalog or multiply retries. Namespaced
+IDs are `opencode/<upstream-id>`. OpenCode paid models need a workspace payment
+method. A remaining 429 after the CLI headers are present is the real IP quota,
+not a missing route. Occasional `500 Internal server error` is OpenCode upstream.
+`CPA/*` catalogs follow the current CLIProxyAPI
 set, including `CPA/opencode/*` and `CPA/gemini-3.8-flash-high`. Host totals
 still differ because official models differ; do not force parity. Cockpit 1.3.36
 does not propagate a saved provider catalog into an existing mixed-route
@@ -130,10 +135,11 @@ commit `f215bde` accepts Codex/OpenAI content-part arrays; keep this
 compatibility when changing its prompt handling.
 After a safe Cockpit relaunch in Windows interactive Session 1, the CTPS live
 sidecar exposed all 125 configured `CPA/*` routes, including 66
-`CPA/opencode/*` routes. WSL observed the same live set through CTPS. A real
-`CPA/opencode/big-pickle` request from both environments reached OpenCode and
-returned `429 FreeUsageLimitError` rather than `model_route_not_available`; a
-real official OAuth request returned HTTP 200. CTPS and WSL `codex debug models`
+`CPA/opencode/*` routes. WSL observed the same live set through CTPS. After the OpenCode CLI header
+repair, a real `CPA/opencode/big-pickle` request from Mac Cockpit and from Pi5
+CLIProxyAPI returned HTTP 200 with `PING`. CTPS/WSL previously proved route
+reachability with `429 FreeUsageLimitError`; retest those hosts if they still
+show the old error. A real official OAuth request returned HTTP 200. CTPS and WSL `codex debug models`
 retained 500000 context, 100 percent effective context, and 450000 compact.
 
 RPi SSH-host Codex context uses provider `pi5-api`. Its
