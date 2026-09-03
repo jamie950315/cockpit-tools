@@ -220,7 +220,7 @@ Known-good state verified on 2026-09-03:
 - Mac and RPi use raw context 526316 with Codex's 95-percent factor; CTPS and
   WSL use raw context 500000 with an explicit 100-percent factor. All four
   produce a usable 500000 context and compact at 450000.
-- OpenCode paid models require a workspace payment method. Free models can 429.
+- OpenCode paid models require a workspace payment method. Selecting a free OpenCode Zen model in Codex, such as `CPA/opencode/big-pickle`, returns too many requests; treat that as upstream rate limiting, not a missing route.
   After those failures, CLIProxyAPI may cool the OpenCode credential and omit
   some `opencode/*` IDs from `/v1/models`; do not delete configured models from
   that temporary list.

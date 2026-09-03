@@ -109,7 +109,9 @@ proxy still advertises 23 models. Pi5 CLIProxyAPI now also has OpenCode Zen as a
 `openai-compatibility` provider at `https://opencode.ai/zen/v1` with prefix
 `opencode` and a browser User-Agent header, because Cloudflare otherwise returns
 1010. Namespaced IDs are `opencode/<upstream-id>`. OpenCode paid models need a
-workspace payment method; free models can return 429. After a burst of those
+workspace payment method. Selecting a free OpenCode Zen model in Codex,
+such as `CPA/opencode/big-pickle`, returns a too-many-requests error; that is
+upstream rate limiting, not a missing route. After a burst of those
 errors, CLIProxyAPI may cool the OpenCode credential and temporarily omit some
 `opencode/*` IDs from `/v1/models`; restore the configured set, do not shrink
 catalogs to the cooled list. `CPA/*` catalogs follow the current CLIProxyAPI
