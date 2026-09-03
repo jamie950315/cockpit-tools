@@ -2,6 +2,12 @@
 
 Read [`docs/COCKPIT_MIXED_ROUTING_RUNBOOK.md`](docs/COCKPIT_MIXED_ROUTING_RUNBOOK.md) before rebuilding, signing, installing, upgrading, or repairing the custom Cockpit Tools app and its five-account OAuth/CLIProxyAPI mixed routing.
 
+For model additions, removals, renames, or provider catalog refreshes across
+Mac, CTPS Windows, WSL, and RPi, use the personal
+`cockpit-sync-models` skill at
+`~/.codex/skills/cockpit-sync-models/SKILL.md`. It requires live set comparison
+and end-to-end requests rather than relying on historical model counts.
+
 This fork keeps three public branches with deliberately separate scopes:
 
 - `xcode27patch`: only the Xcode 27 / Swift 6.4 static-library linker fix in `src-tauri/build.rs`.
@@ -82,7 +88,10 @@ overstate smaller upstream models, an accepted user-selected tradeoff.
 CTPS Windows deployment (verified 2026-09-02): official Cockpit Tools 1.3.36
 x64 and Codex CLI 0.152.1 are installed. Its Cockpit store contains the same
 five OAuth credential records and CLIProxyAPI provider copied over encrypted
-SSH, while its user-owned model catalog is byte-identical to the Mac catalog.
+SSH. Its user-owned catalog carries the same `CPA/*` set as Mac but is not
+byte-identical: host-specific official models differ, and Windows uses raw
+context 500000 with effective percent 100 while Mac uses 526316 with the default
+95-percent factor.
 After a full Cockpit restart, real official and `CPA/*` Responses requests
 both returned HTTP 200. Keep
 `codex_auto_restore_takeover_on_launch = false` on CTPS so Cockpit 1.3.36 does
