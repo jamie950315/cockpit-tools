@@ -162,6 +162,11 @@ Provider removals are shown as a non-destructive difference and are never
 deleted automatically.
 It does not synchronize CTPS, WSL, or RPi; use `cockpit-sync-models` for those
 hosts.
+The temporary `macfake` provider has been removed from Pi5 CLIProxyAPI and its
+Mac test server is stopped. The Mac Cockpit provider snapshot, `CPA` route,
+live manifest, and both Codex catalogs deliberately still contain the three
+`CPA/macfake/manager-test-*` entries so the user can verify refresh and removal
+detection. Do not clean those downstream entries before that test is complete.
 After a safe Cockpit relaunch in Windows interactive Session 1, the CTPS live
 sidecar exposed all 125 configured `CPA/*` routes, including 66
 `CPA/opencode/*` routes. WSL observed the same live set through CTPS. After the OpenCode CLI header

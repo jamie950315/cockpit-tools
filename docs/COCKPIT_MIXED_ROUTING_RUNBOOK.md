@@ -661,6 +661,9 @@ The utility must remain narrower than the model synchronization workflow:
   also backs up the credential-bearing route store with restricted permissions.
   Both paths preserve unknown fields and refuse to overwrite files changed
   externally since load.
+- A provider-removal test may intentionally leave stale route, manifest, and
+  catalog entries after the upstream provider disappears. Do not repair that
+  staged difference until the user finishes verifying removal detection.
 - A save does not reload a running Codex app-server. Restart Codex through the
   normal API Service path only after active work is finished.
 
