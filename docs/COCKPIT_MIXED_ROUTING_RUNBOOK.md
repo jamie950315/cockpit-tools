@@ -207,9 +207,9 @@ models`, reapply the three numeric fields to every current entry, and repeat one
 official plus one namespaced real task. Never assume the historical count of 71
 is fixed.
 
-## PPLX and OpenCode Zen model-list synchronization
+## PPLX, OpenCode Zen, and OpenRouter model-list synchronization
 
-Known-good state verified on 2026-09-03:
+Known-good state verified through 2026-09-04:
 
 - The PPLX proxy advertises 23 models.
 - Pi5 CLIProxyAPI also serves OpenCode Zen through `openai-compatibility` at
@@ -231,6 +231,21 @@ Known-good state verified on 2026-09-03:
   `CPA/opencode/big-pickle` returned HTTP 200 with `PING` on 2026-09-03. A later
   429 with those headers present is the real IP quota. Do not rotate IPs to evade
   it. Occasional `500 Internal server error` is OpenCode upstream.
+- Pi5 CLIProxyAPI serves OpenRouter through `openai-compatibility` with
+  `base-url: https://openrouter.ai/api/v1` and the case-sensitive prefix
+  `OpenRouter`. Do not put that API URL in `api-key-entries[].proxy-url`; that
+  field is only for a real outbound HTTP/SOCKS proxy. The wrong value can still
+  allow model discovery while inference fails with a management API 502 and an
+  upstream `Bad Request`. The API key must contain only its intended printable
+  characters; trailing YAML escape sequences become control characters and
+  make Go reject the `Authorization` header before any upstream request.
+- After removing a mistaken OpenRouter `proxy-url` and two trailing escape
+  characters from its key, real `/v1/responses` calls through Pi5 CLIProxyAPI
+  and the Mac Cockpit sidecar returned HTTP 200 with visible output for all
+  three configured `CPA/OpenRouter/*` models. The Muse model can consume a
+  small output allowance entirely as reasoning, so use a sufficient
+  `max_output_tokens` value when checking for visible text rather than treating
+  an empty HTTP 200 as success.
 - A running Cockpit sidecar keeps the previous mixed-route snapshot in memory.
   Disk updates are not live until the user relaunches Cockpit. Do not quit
   Cockpit from a Codex task that uses the sidecar.

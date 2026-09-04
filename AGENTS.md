@@ -125,7 +125,7 @@ The Windows active static catalog also uses `CPA · <upstream-id>` display names
 but no default-instance file should be created solely to mirror the API Service
 route.
 
-Current PPLX/CLIProxyAPI model synchronization (verified 2026-09-03): the PPLX
+Current PPLX/CLIProxyAPI model synchronization (verified 2026-09-04): the PPLX
 proxy still advertises 23 models. Pi5 CLIProxyAPI now also has OpenCode Zen as an
 `openai-compatibility` provider at `https://opencode.ai/zen/v1` with prefix
 `opencode`. Free OpenCode models require official CLI identification headers:
@@ -153,6 +153,20 @@ CLIProxyAPI `modelCatalog` as a JSON array; a PowerShell `ConvertTo-Json`
 round-trip can wrap it as `{Count, value}` and must be unwrapped. PPLX proxy
 commit `f215bde` accepts Codex/OpenAI content-part arrays; keep this
 compatibility when changing its prompt handling.
+
+Pi5 CLIProxyAPI also serves three OpenRouter models through an
+`openai-compatibility` provider at `https://openrouter.ai/api/v1` with the
+case-sensitive prefix `OpenRouter`. Its `api-key-entries[].proxy-url` must be
+unset unless a real outbound HTTP/SOCKS proxy is required; the OpenRouter API
+endpoint belongs only in `base-url`. Setting both fields to the API endpoint
+causes inference to fail before reaching the model even though model discovery
+works. Also reject copied API keys containing YAML escapes or other control
+characters, which produce an invalid `Authorization` header. After removing a
+mistaken `proxy-url` and two trailing escape characters, real Pi5 and Mac
+Cockpit Responses requests to `CPA/OpenRouter/meta/muse-spark-1.3-contributor`,
+`CPA/OpenRouter/z-ai/glm-5.3-flash`, and
+`CPA/OpenRouter/nvidia/nemotron-3-ultra-550b-a55b:free` all returned HTTP 200
+with `PING`; a representative official OAuth request continued to pass.
 
 The native `tools/CodexModelManager` app can now detect provider, persisted
 mixed-route, live-manifest, and Mac Codex catalog differences while it is open.
