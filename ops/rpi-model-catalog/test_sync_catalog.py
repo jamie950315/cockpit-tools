@@ -35,6 +35,10 @@ class CatalogTests(unittest.TestCase):
     def test_policy_and_generic_metadata(self):
         result = sync.merge_catalog(self.old, self.bundled, ["CPA/new", "gpt-reserve"])
         for row in result["models"]:
+            if not row["slug"].startswith("CPA/"):
+                for key in sync.CONTEXT_KEYS:
+                    self.assertNotIn(key, row)
+                continue
             self.assertEqual(row["context_window"], 526316)
             self.assertEqual(row["effective_context_window_percent"], 95)
             self.assertEqual(row["auto_compact_token_limit"], 450000)
@@ -42,6 +46,47 @@ class CatalogTests(unittest.TestCase):
         self.assertNotIn("old identity", new["base_instructions"])
         self.assertNotIn("model_messages", new)
         self.assertEqual(sync.model_map(result)["gpt-reserve"]["visibility"], "hide")
+
+    def test_restore_existing_official_defaults(self):
+        self.old["models"][0].update(context_window=526316, max_context_window=526316,
+                                     effective_context_window_percent=95, auto_compact_token_limit=450000)
+        self.bundled["models"].append({"slug": "gpt-5.6-sol", "context_window": 272000,
+                                        "max_context_window": 872000,
+                                        "effective_context_window_percent": 95})
+        result = sync.model_map(sync.merge_catalog(self.old, self.bundled, ["gpt-5.6-sol"]))
+        self.assertEqual(result["gpt-5.6-sol"]["context_window"], 272000)
+        self.assertEqual(result["gpt-5.6-sol"]["max_context_window"], 872000)
+        self.assertNotIn("auto_compact_token_limit", result["gpt-5.6-sol"])
+        self.assertEqual(result["gpt-5.6-sol"]["custom"], "keep")
+
+    def test_only_exact_cpa_prefix_forces_context(self):
+        ids = ["CPA/gpt-6-astra", "cpa/model", "OTHER/model", "gpt-new"]
+        result = sync.model_map(sync.merge_catalog(self.old, self.bundled, ids))
+        self.assertEqual(result["CPA/gpt-6-astra"]["context_window"], 526316)
+        for slug in ids[1:]:
+            self.assertTrue(all(key not in result[slug] for key in sync.CONTEXT_KEYS))
+
+    def test_native_defaults_refresh_on_later_sync(self):
+        self.bundled["models"][0]["context_window"] = 272000
+        first = sync.merge_catalog(self.old, self.bundled, ["gpt-6-astra"])
+        self.bundled["models"][0]["context_window"] = 372000
+        second = sync.merge_catalog(first, self.bundled, ["gpt-6-astra"])
+        self.assertEqual(sync.model_map(second)["gpt-6-astra"]["context_window"], 372000)
+
+    def test_bundle_wins_over_legacy_cache_and_filters_custom(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / "models_cache.json").write_text(json.dumps({"models": [
+                {"slug": "gpt-6-astra", "context_window": 100000},
+                {"slug": "gpt-older", "context_window": 272000},
+                {"slug": "gpt-custom", "context_window": 526316},
+                {"slug": "CPA/old", "context_window": 131072}]}))
+            with patch.object(sync, "run_json", return_value=self.bundled):
+                result = sync.model_map(sync.native_defaults(home, "codex"))
+            self.assertEqual(result["gpt-6-astra"], self.bundled["models"][0])
+            self.assertEqual(result["gpt-older"]["context_window"], 272000)
+            self.assertNotIn("gpt-custom", result)
+            self.assertNotIn("CPA/old", result)
 
     def test_idempotent(self):
         first = sync.merge_catalog(self.old, self.bundled, ["gpt-6-astra", "CPA/new"])

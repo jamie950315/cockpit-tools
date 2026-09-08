@@ -14,6 +14,9 @@ import time
 import tomllib
 import urllib.request
 
+CONTEXT_KEYS = ("context_window", "max_context_window",
+                "effective_context_window_percent", "auto_compact_token_limit")
+
 
 def model_map(document):
     rows = document.get("models")
@@ -71,9 +74,17 @@ def merge_catalog(current, bundled, ids):
             row.pop("model_messages", None)
             row["visibility"] = "hide" if slug == "gpt-reserve" else "list"
         merged[slug] = row
-    for row in merged.values():
-        row.update(context_window=526316, max_context_window=526316,
-                   effective_context_window_percent=95, auto_compact_token_limit=450000)
+    for slug, row in merged.items():
+        if slug.startswith("CPA/"):
+            row.update(context_window=526316, max_context_window=526316,
+                       effective_context_window_percent=95, auto_compact_token_limit=450000)
+        else:
+            # Remove previous overrides, including keys absent in native metadata.
+            # Unknown native IDs fall back to Codex's own schema/runtime defaults.
+            for key in CONTEXT_KEYS:
+                row.pop(key, None)
+                if key in native.get(slug, {}):
+                    row[key] = copy.deepcopy(native[slug][key])
     result = copy.deepcopy(current)
     result["models"] = sorted(merged.values(), key=lambda x: x.get("priority", 10000))
     return result
@@ -96,6 +107,20 @@ def codex_binary(home):
 def run_json(command):
     result = subprocess.run(command, capture_output=True, timeout=45, check=True)
     return json.loads(result.stdout)
+
+
+def native_defaults(home, binary):
+    # The original Codex discovery cache can retain exact metadata for older
+    # official IDs no longer included in the latest binary. Never use the custom
+    # catalog as the source of defaults, or carry its 500K overrides back in.
+    defaults = {}
+    cache = home / "models_cache.json"
+    if cache.exists():
+        for slug, row in model_map(json.loads(cache.read_bytes())).items():
+            if "/" not in slug and row.get("context_window") != 526316 and row.get("auto_compact_token_limit") != 450000:
+                defaults[slug] = row
+    defaults.update(model_map(run_json([binary, "debug", "models", "--bundled"])))
+    return {"models": list(defaults.values())}
 
 
 def publish(target, original, candidate, binary, check=False):
@@ -159,7 +184,7 @@ def sync(home, check=False):
     original = target.read_bytes()
     current = json.loads(original)
     binary = codex_binary(home)
-    bundled = run_json([binary, "debug", "models", "--bundled"])
+    bundled = native_defaults(home, binary)
     candidate = merge_catalog(current, bundled, ids)
     status = publish(target, original, candidate, binary, check)
     print(json.dumps({"status": status, "models": len(candidate["models"]),

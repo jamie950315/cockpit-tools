@@ -12,9 +12,15 @@ text-only coding profile, not another model's identity instructions. Existing
 entries and unknown fields remain intact. New native priorities put Astra near
 the top; the internal `gpt-reserve` entry remains hidden.
 
-Every entry retains the selected 526316 raw / 95% effective / 450000 compaction
-policy. This reports 500000 usable tokens in Codex, but does not increase the
-real upstream capacity of smaller models.
+Only IDs starting with the exact `CPA/` prefix receive the selected 526316 raw /
+95% effective / 450000 compaction policy. This reports 500000 usable tokens in
+Codex, but does not increase the real upstream capacity of smaller models.
+All other IDs have previous context overrides removed and their context fields
+restored from the newest installed Codex bundle on every refresh. For older
+official IDs absent from that bundle, the original native discovery cache is a
+fallback; entries carrying our custom 500K values are excluded. Unknown IDs have
+no explicit context override and use Codex's schema/runtime defaults. This also
+applies to future models: `CPA/gpt-*` gets 500K, unprefixed `gpt-*` does not.
 
 The updater is additions-only: temporary provider omissions never delete models.
 Permanent removals still require a reviewed maintenance operation. A provider
@@ -63,6 +69,8 @@ python3 sync_catalog.py --check
 Codex but does not publish. After deployment, run the service twice: expect
 `updated` then `unchanged`. Verify `codex debug models` and make independent
 official and namespaced inference probes; scheduled refresh never runs these.
+Check that every CPA entry has the custom context fields and every other entry
+matches native defaults (including removal of the forced compaction threshold).
 
 Disable with `systemctl --user disable --now codex-model-catalog-sync.timer`.
 Stop the service before restoring a reviewed backup to the exact catalog path.
