@@ -1,0 +1,9 @@
+[Unit]
+Description=Refresh RPi Codex model catalog safely
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.local/lib/codex-model-catalog/sync_catalog.py
+UMask=0077
+TimeoutStartSec=150
+NoNewPrivileges=true

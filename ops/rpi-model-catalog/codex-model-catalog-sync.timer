@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh RPi Codex models every ten minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+RandomizedDelaySec=30s
+
+[Install]
+WantedBy=timers.target
