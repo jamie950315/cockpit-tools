@@ -40,6 +40,13 @@ under `ops/cliproxyapi/`. Keep the container pinned by immutable digest through
 its `.env`; an update is successful only after the runtime version, model list,
 five TEAM auth files, and five real Responses requests pass.
 
+The Pi5 scheduled Codex account wakeup is disabled at the user's request
+(2026-09-08). All four `cliproxy-codex-wake-*.timer` units and
+`cliproxy-codex-wake.service` are disabled and stopped. The script
+`/home/jamie/docker/cli-proxy-api/codex-account-wake.sh` (the France-capital
+prompt) and unit files remain for recovery; do not re-enable them as maintenance.
+This does not disable CLIProxyAPI or its daily updater.
+
 Current installed Cockpit state (verified 2026-09-02): the upstream 1.3.36
 arm64 release is installed at `/Applications/Cockpit Tools.app`; official OAuth
 and `CPA/*` routing both passed real Responses requests after the upgrade.
