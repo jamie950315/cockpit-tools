@@ -204,8 +204,10 @@ RPi SSH-host Codex context uses provider `pi5-api`. Its
 `/home/jamie/.codex/config.toml` points `model_catalog_json` to
 `/home/jamie/.codex/rpi-all-models-500k-catalog.json`. The static catalog keeps
 the host's official models and the current `CPA/*` set from CLIProxyAPI,
-including `CPA/opencode/*`, each declaring context 526316 and compact 450000; Codex applies
-95 percent and reports an actual window of 500000. Fresh real
+including `CPA/opencode/*`. Only `CPA/` IDs now declare context 526316 and
+compact 450000; Codex applies 95 percent and reports an actual window of 500000.
+Unprefixed official models use native defaults, not the former all-model 500K
+policy. Historical fresh real
 `gpt-5.6-luna` and `CPA/grok-4.6` tasks both returned `OK` with
 `model_context_window = 500000`. Existing tasks retain the context snapshot
 while the current app-server writer remains active. The existing
@@ -221,7 +223,9 @@ RPi catalog refresh is now automated by the user-level
 `codex-model-catalog-sync.timer` every ten minutes (source:
 `ops/rpi-model-catalog/`). It reads the current `pi5-api` model endpoint and
 credential helper, merges newly advertised IDs with the host's newest bundled
-Codex metadata, preserves 500K/450K and existing entries, and validates the
+Codex metadata, preserves 500K/450K only for `CPA/` entries, restores native
+context defaults for all other IDs on every refresh, preserves existing model
+entries, and validates the
 candidate through Codex before backed-up atomic replacement. Failed/partial
 responses preserve the previous catalog; absent IDs are not automatically
 deleted. The service never edits auth/routing or restarts running tasks. Existing

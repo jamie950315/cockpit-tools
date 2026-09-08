@@ -205,11 +205,15 @@ Known-good state verified on 2026-09-02:
 RPi catalog updates are automatic via the user-level
 `codex-model-catalog-sync.timer` (source and recovery instructions:
 `ops/rpi-model-catalog/README.md`). It checks the configured `pi5-api` model
-endpoint every ten minutes, adds newly advertised IDs, applies the existing
-500K/450K policy, validates with the newest installed standalone Codex, then
+endpoint every ten minutes, adds newly advertised IDs, applies the
+500K/450K policy only to exact `CPA/` IDs, validates with the newest installed standalone Codex, then
 backs up and atomically replaces the catalog. Exact bundled metadata is used
 for new official models when available; unknown models receive a generic
-text-only profile. Temporary upstream omissions never remove existing entries.
+text-only profile. All non-CPA context fields are restored on every refresh
+from the newest bundled defaults, with the original native cache as a fallback
+for older IDs absent from the bundle. If neither provides a default, remove the
+custom fields and let Codex use its own defaults. This supersedes the historical
+all-model 500K policy above. Temporary upstream omissions never remove existing entries.
 The timer does not send inference, alter provider/auth configuration, or restart
 app-servers. A host reconnect may be needed for an already-open selector to read
 the new file. Upstream route maintenance and permanent removals remain separate
