@@ -202,10 +202,19 @@ Known-good state verified on 2026-09-02:
   and its app-server was reloaded. A supported model override on a new turn
   preserved the task history and recorded `model_context_window = 500000`.
 
-When the Pi5 model set changes, regenerate the RPi catalog from `codex debug
-models`, reapply the three numeric fields to every current entry, and repeat one
-official plus one namespaced real task. Never assume the historical count of 71
-is fixed.
+RPi catalog updates are automatic via the user-level
+`codex-model-catalog-sync.timer` (source and recovery instructions:
+`ops/rpi-model-catalog/README.md`). It checks the configured `pi5-api` model
+endpoint every ten minutes, adds newly advertised IDs, applies the existing
+500K/450K policy, validates with the newest installed standalone Codex, then
+backs up and atomically replaces the catalog. Exact bundled metadata is used
+for new official models when available; unknown models receive a generic
+text-only profile. Temporary upstream omissions never remove existing entries.
+The timer does not send inference, alter provider/auth configuration, or restart
+app-servers. A host reconnect may be needed for an already-open selector to read
+the new file. Upstream route maintenance and permanent removals remain separate
+reviewed operations. RPi's native login was independently renewed on 2026-09-08.
+Never assume historical catalog counts are fixed.
 
 ## PPLX, OpenCode Zen, and OpenRouter model-list synchronization
 

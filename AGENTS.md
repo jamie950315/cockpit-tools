@@ -217,6 +217,19 @@ Do this only after confirming no RPi task is active. The pre-change config backu
 ChatGPT refresh token is invalid, but `pi5-api` requests still work; do not copy
 another host's rotating `auth.json` to repair it.
 
+RPi catalog refresh is now automated by the user-level
+`codex-model-catalog-sync.timer` every ten minutes (source:
+`ops/rpi-model-catalog/`). It reads the current `pi5-api` model endpoint and
+credential helper, merges newly advertised IDs with the host's newest bundled
+Codex metadata, preserves 500K/450K and existing entries, and validates the
+candidate through Codex before backed-up atomic replacement. Failed/partial
+responses preserve the previous catalog; absent IDs are not automatically
+deleted. The service never edits auth/routing or restarts running tasks. Existing
+app-servers may need a host reconnect to display newly downloaded models.
+The installed script is `/home/jamie/.local/lib/codex-model-catalog/sync_catalog.py`.
+RPi native login was independently renewed on 2026-09-08; the historical invalid
+refresh-token note above does not describe the renewed session.
+
 WSL uses provider `ctps_local_access`, the CTPS local-access URL, and
 `/home/jamie/.codex/wsl-cpa-500k-catalog.json`. Its catalog keeps the host's
 official models plus the current `CPA/*` set with `CPA · <upstream-id>` display
