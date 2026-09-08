@@ -231,6 +231,8 @@ responses preserve the previous catalog; absent IDs are not automatically
 deleted. The service never edits auth/routing or restarts running tasks. Existing
 app-servers may need a host reconnect to display newly downloaded models.
 The installed script is `/home/jamie/.local/lib/codex-model-catalog/sync_catalog.py`.
+RPi automatic refresh preserves the user's Astra-before-Sol ordering preference;
+Astra receives a priority strictly ahead of Sol without reordering other models.
 RPi native login was independently renewed on 2026-09-08; the historical invalid
 refresh-token note above does not describe the renewed session.
 

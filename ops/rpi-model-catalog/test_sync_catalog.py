@@ -25,6 +25,14 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(result["models"][0]["slug"], "gpt-6-astra")
         self.assertEqual(result["models"][0]["base_instructions"], "native Astra")
 
+    def test_astra_before_sol_when_priorities_tie(self):
+        self.old["models"][0]["priority"] = 1
+        first = sync.merge_catalog(self.old, self.bundled, ["gpt-6-astra"])
+        self.assertEqual([r["slug"] for r in first["models"][:2]],
+                         ["gpt-6-astra", "gpt-5.6-sol"])
+        self.assertEqual(sync.model_map(first)["gpt-6-astra"]["priority"], 0)
+        self.assertEqual(first, sync.merge_catalog(first, self.bundled, ["gpt-6-astra"]))
+
     def test_preserve_missing_and_unknown_fields(self):
         result = sync.merge_catalog(self.old, self.bundled, ["gpt-6-astra"])
         self.assertIn("CPA/old", sync.model_map(result))

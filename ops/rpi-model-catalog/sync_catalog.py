@@ -85,6 +85,11 @@ def merge_catalog(current, bundled, ids):
                 row.pop(key, None)
                 if key in native.get(slug, {}):
                     row[key] = copy.deepcopy(native[slug][key])
+    # Keep the user's Astra-before-Sol preference across automatic refreshes.
+    if "gpt-6-astra" in merged and "gpt-5.6-sol" in merged:
+        merged["gpt-6-astra"]["priority"] = min(
+            merged["gpt-6-astra"].get("priority", 1),
+            merged["gpt-5.6-sol"].get("priority", 1) - 1)
     result = copy.deepcopy(current)
     result["models"] = sorted(merged.values(), key=lambda x: x.get("priority", 10000))
     return result

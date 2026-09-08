@@ -219,6 +219,8 @@ app-servers. A host reconnect may be needed for an already-open selector to read
 the new file. Upstream route maintenance and permanent removals remain separate
 reviewed operations. RPi's native login was independently renewed on 2026-09-08.
 Never assume historical catalog counts are fixed.
+RPi refresh also preserves the requested Astra-before-Sol order by assigning
+Astra a priority strictly ahead of Sol; other models retain their ordering.
 
 ## PPLX, OpenCode Zen, and OpenRouter model-list synchronization
 
